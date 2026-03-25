@@ -500,10 +500,12 @@ export class BattleController {
       const roomId = `battle-${battleId}`
       req.io.to(roomId).emit('turn-update', {
         message: turnRecord.message,
-        damage,
+        damage: Number(damage || 0),
         effectiveness,
         attacker: attacker.pokemonName,
         defender: defender.pokemonName,
+        moveName: selectedMove.name,
+        timestamp: Date.now(),
       })
       req.io.to(roomId).emit('state-changed', state)
 

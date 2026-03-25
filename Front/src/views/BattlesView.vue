@@ -206,12 +206,12 @@
               Batalla iniciada...
             </p>
             <p 
-              v-for="(turn, idx) in (liveBattle.battleState?.log || []).slice(-20)" 
-              :key="idx" 
+              v-for="turn in (liveBattle.battleState?.log || []).slice(-20)" 
+              :key="turn.logId || turn.timestamp || turn.message" 
               class="text-xs text-gray-700 font-semibold border-l-4 border-purple-400 pl-2"
             >
               <span class="text-purple-600">→</span> {{ turn.message }}
-              <span v-if="turn.damage" class="text-red-600">(-{{ turn.damage }} HP)</span>
+              <span v-if="turn.damage && turn.damage > 0" class="text-red-600 font-bold">(-{{ turn.damage }} HP)</span>
             </p>
           </div>
         </div>
@@ -258,7 +258,6 @@ const liveBattleId = ref('')
 const liveBattle = ref(null)
 const pokemonDetails = ref({}) // Guardar detalles con imágenes
 let requestPoller = null // Polling de solicitudes de batalla
-let battleUpdatePoller = null // Polling fallback para batallas
 
 const acceptedBattles = computed(() => battleHistory.value.filter((battle) => battle.status === 'accepted'))
 const myUid = computed(() => authStore.user?.uid || '')
@@ -435,7 +434,8 @@ function setupWebSocket() {
   
   // Registrar callback para auto-refrescar batalla cuando hay cambios
   battleSocketService.onBattleRefresh(() => {
-    refreshLiveBattle()
+    // Solo refrescar si el WebSocket no actualizó el estado completo
+    // Por defecto confiamos en WebSocket
   })
 
   // Registrar callback para auto-refrescar solicitudes cuando hay nuevas
@@ -447,14 +447,52 @@ function setupWebSocket() {
   battleSocketService.onTurnUpdate((turnData) => {
     if (liveBattle.value?.battleState) {
       liveBattle.value.battleState.log = liveBattle.value.battleState.log || []
-      liveBattle.value.battleState.log.push(turnData)
+      // Asegurar que tenga timestamp para keys únicas
+      const turn = {
+        ...turnData,
+        timestamp: Date.now(),
+        logId: `turn-${Date.now()}-${Math.random()}`
+      }
+      liveBattle.value.battleState.log.push(turn)
     }
   })
 
-  // Escuchar cambios de estado en tiempo real
+  // Escuchar cambios de estado en tiempo real - MERGE, no reemplazar
   battleSocketService.onStateChanged((newState) => {
-    if (liveBattle.value) {
-      liveBattle.value.battleState = newState
+    if (liveBattle.value && newState) {
+      // Hacer merge del estado en lugar de reemplazar todo (evita scroll)
+      if (liveBattle.value.battleState) {
+        // Copiar propiedades importantes sin perder el componente
+        liveBattle.value.battleState.turnUid = newState.turnUid
+        liveBattle.value.battleState.phase = newState.phase
+        liveBattle.value.battleState.turnCount = newState.turnCount
+        liveBattle.value.battleState.summary = newState.summary
+        
+        // Actualizar HP de pokémon sin re-crear el array
+        if (newState.challenger && liveBattle.value.battleState.challenger) {
+          if (newState.challenger.team && liveBattle.value.battleState.challenger.team) {
+            newState.challenger.team.forEach((pokemon, idx) => {
+              if (liveBattle.value.battleState.challenger.team[idx]) {
+                liveBattle.value.battleState.challenger.team[idx].currentHp = pokemon.currentHp
+                liveBattle.value.battleState.challenger.team[idx].fainted = pokemon.fainted
+              }
+            })
+          }
+          liveBattle.value.battleState.challenger.activeIndex = newState.challenger.activeIndex
+        }
+        
+        if (newState.opponent && liveBattle.value.battleState.opponent) {
+          if (newState.opponent.team && liveBattle.value.battleState.opponent.team) {
+            newState.opponent.team.forEach((pokemon, idx) => {
+              if (liveBattle.value.battleState.opponent.team[idx]) {
+                liveBattle.value.battleState.opponent.team[idx].currentHp = pokemon.currentHp
+                liveBattle.value.battleState.opponent.team[idx].fainted = pokemon.fainted
+              }
+            })
+          }
+          liveBattle.value.battleState.opponent.activeIndex = newState.opponent.activeIndex
+        }
+      }
     }
   })
 
@@ -482,17 +520,7 @@ async function openLiveBattle(battleId) {
     setupWebSocket()
     battleSocketService.joinBattle(battleId, myUid.value)
     
-    // Polling fallback de 1.5 segundos como respaldo si WebSocket falla
-    if (battleUpdatePoller) clearInterval(battleUpdatePoller)
-    battleUpdatePoller = setInterval(async () => {
-      try {
-        await refreshLiveBattle()
-      } catch (err) {
-        console.error('Polling error:', err)
-      }
-    }, 1500)
-    
-    message.value = 'Combate en vivo cargado. WebSocket + Polling activos.'
+    message.value = 'Combate en vivo cargado. WebSocket activo.'
   } catch (err) {
     messageError.value = true
     message.value = err?.response?.data?.error || 'No se pudo abrir la batalla en vivo.'
@@ -510,13 +538,25 @@ async function playMove(moveName) {
 
   try {
     const data = await battleService.playTurn(authStore.token, liveBattleId.value, moveName)
-    liveBattle.value = data.battle
     
-    // Notificar a otros jugadores del turno jugado
-    battleSocketService.notifyTurn(liveBattleId.value, {
-      message: `${myUid.value} usó ${moveName}`,
-      damage: 0
-    })
+    // Actualizar estado desde respuesta del servidor (que ya incluye el turno en el log)
+    if (data.battle?.battleState) {
+      liveBattle.value.battleState = {
+        ...liveBattle.value.battleState,
+        ...data.battle.battleState,
+        challenger: data.battle.battleState.challenger,
+        opponent: data.battle.battleState.opponent,
+      }
+      
+      // Asegurar que el último turno tiene metadata para el key
+      if (Array.isArray(data.battle.battleState.log) && data.battle.battleState.log.length > 0) {
+        const lastTurn = data.battle.battleState.log[data.battle.battleState.log.length - 1]
+        if (!lastTurn.logId) {
+          lastTurn.logId = `turn-${Date.now()}-${Math.random()}`
+          lastTurn.timestamp = Date.now()
+        }
+      }
+    }
 
     if (isLiveFinished.value) {
       message.value = liveBattle.value?.battleState?.summary || 'La batalla termino.'
@@ -536,12 +576,6 @@ function closeLiveBattle() {
   liveBattle.value = null
   pokemonDetails.value = {}
   teardownWebSocket()
-  
-  // Limpiar polling fallback
-  if (battleUpdatePoller) {
-    clearInterval(battleUpdatePoller)
-    battleUpdatePoller = null
-  }
 }
 
 onMounted(async () => {
@@ -567,12 +601,6 @@ onUnmounted(() => {
   if (requestPoller) {
     clearInterval(requestPoller)
     requestPoller = null
-  }
-  
-  // Limpiar polling fallback de batalla si existe
-  if (battleUpdatePoller) {
-    clearInterval(battleUpdatePoller)
-    battleUpdatePoller = null
   }
 })
 </script>
