@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v6'
+const CACHE_VERSION = 'v7'
 const APP_SHELL_CACHE = `pokedex-app-shell-${CACHE_VERSION}`
 const DYNAMIC_CACHE = `pokedex-dynamic-${CACHE_VERSION}`
 const urlsToCache = [
@@ -41,8 +41,9 @@ self.addEventListener('fetch', event => {
   }
 
   const requestUrl = new URL(event.request.url)
+  const isSameOrigin = requestUrl.origin === self.location.origin
   const isAppShellRequest =
-    requestUrl.origin === self.location.origin &&
+    isSameOrigin &&
     urlsToCache.includes(requestUrl.pathname)
 
   // Para API calls, usar network first y cache dinámico
@@ -63,6 +64,12 @@ self.addEventListener('fetch', event => {
     return
   }
 
+  // No cachear llamadas a API (evita respuestas viejas o errores persistidos)
+  if (isSameOrigin && requestUrl.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request))
+    return
+  }
+
   // Para APP SHELL, cache first
   if (isAppShellRequest) {
     event.respondWith(
@@ -73,10 +80,10 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  // Para otros recursos, cache dinámico (cache first con fallback a red)
+  // Para recursos estáticos de la app, usar network first para evitar chunks viejos.
   event.respondWith(
-    caches.match(event.request).then(response => {
-      return response || fetch(event.request).then(fetchResponse => {
+    fetch(event.request)
+      .then(fetchResponse => {
         if (!fetchResponse || fetchResponse.status !== 200) {
           return fetchResponse
         }
@@ -86,7 +93,8 @@ self.addEventListener('fetch', event => {
           cache.put(event.request, clonedResponse)
         })
         return fetchResponse
-      }).catch(() => {
+      })
+      .catch(() => {
         return caches.match(event.request).then(cachedResponse => {
           return cachedResponse || new Response('Offline - Recurso no disponible', {
             status: 503,
@@ -97,7 +105,6 @@ self.addEventListener('fetch', event => {
           })
         })
       })
-    })
   )
 })
 
