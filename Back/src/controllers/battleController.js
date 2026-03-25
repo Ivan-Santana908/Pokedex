@@ -50,8 +50,12 @@ function resolveBattleSummary(winnerUid, challengerUid, opponentUid) {
 }
 
 function initializeBattleState(battle) {
-  const challengerUid = String(battle?.challenger?.uid || '')
-  const opponentUid = String(battle?.opponent?.uid || '')
+  const challengerUid = String(battle?.challenger?.uid || '').trim().toLowerCase()
+  const opponentUid = String(battle?.opponent?.uid || '').trim().toLowerCase()
+  
+  console.log(`⚔️  INITIALIZING BATTLE STATE`)
+  console.log(`   Challenger: ${challengerUid}`)
+  console.log(`   Opponent: ${opponentUid}`)
 
   const challengerTeam = (battle?.challengerTeam?.members || []).map((member) => toBattleMember(member, challengerUid))
   const opponentTeam = (battle?.opponentTeam?.members || []).map((member) => toBattleMember(member, opponentUid))
@@ -86,15 +90,18 @@ function initializeBattleState(battle) {
 }
 
 function getSidesFromState(state, actorUid) {
-  const uid = String(actorUid || '')
-  if (state?.challenger?.uid === uid) {
+  const uid = String(actorUid || '').trim().toLowerCase()
+  const challengerUid = String(state?.challenger?.uid || '').trim().toLowerCase()
+  const opponentUid = String(state?.opponent?.uid || '').trim().toLowerCase()
+  
+  if (challengerUid && uid === challengerUid) {
     return {
       self: state.challenger,
       foe: state.opponent,
     }
   }
 
-  if (state?.opponent?.uid === uid) {
+  if (opponentUid && uid === opponentUid) {
     return {
       self: state.opponent,
       foe: state.challenger,
@@ -369,6 +376,17 @@ export class BattleController {
         battle.battleState = initializeBattleState(battle)
         await battle.save()
       }
+      
+      // Normalizar UIDs en la respuesta
+      if (battle.battleState) {
+        if (battle.battleState.challenger) {
+          battle.battleState.challenger.uid = String(battle.battleState.challenger.uid || '').trim().toLowerCase()
+        }
+        if (battle.battleState.opponent) {
+          battle.battleState.opponent.uid = String(battle.battleState.opponent.uid || '').trim().toLowerCase()
+        }
+        battle.battleState.turnUid = String(battle.battleState.turnUid || '').trim().toLowerCase()
+      }
 
       return res.json({ battle })
     } catch (error) {
@@ -399,15 +417,30 @@ export class BattleController {
         return res.status(409).json({ error: 'battle is not active for turn play' })
       }
 
-      const state = battle.battleState || initializeBattleState(battle)
-
+      let state = battle.battleState || initializeBattleState(battle)
+      
+      // Normalizar UIDs del estado recuperado
+      if (state && state.challenger) {
+        state.challenger.uid = String(state.challenger.uid || '').trim().toLowerCase()
+      }
+      if (state && state.opponent) {
+        state.opponent.uid = String(state.opponent.uid || '').trim().toLowerCase()
+      }
+      if (state) {
+        state.turnUid = String(state.turnUid || '').trim().toLowerCase()
+      }
       if (state.phase === 'finished') {
         return res.status(409).json({ error: 'battle already finished', battle })
       }
-
-      if (String(state.turnUid) !== String(req.user.uid)) {
+      const actorUid = String(req.user.uid || '').trim().toLowerCase()
+      const currentTurnUid = String(state.turnUid || '').trim().toLowerCase()
+      
+      if (!currentTurnUid || currentTurnUid !== actorUid) {
+        console.log(`❌ TURN VALIDATION FAILED: currentTurn=${currentTurnUid}, actor=${actorUid}`)
         return res.status(409).json({ error: 'it is not your turn', battle })
       }
+      
+      console.log(`✅ TURN VALIDATION PASSED: currentTurn=${currentTurnUid}, actor=${actorUid}`)
 
       const sides = getSidesFromState(state, req.user.uid)
       if (!sides) {
@@ -490,8 +523,11 @@ export class BattleController {
       if (!selfAlive || !foeAlive) {
         setBattleFinished(battle, state)
       } else {
-        // Cambiar turno al oponente - asegurar que sea string
-        state.turnUid = String(sides.foe.uid || '')
+        // Cambiar turno al oponente - asegurar que sea string  
+        const newTurnUid = String(sides.foe.uid || '').trim().toLowerCase()
+        console.log(`🔄 CHANGING TURN FROM ${String(state.turnUid).trim().toLowerCase()} TO ${newTurnUid}`)
+        console.log(`   Self: ${String(sides.self.uid || '').trim()} | Foe: ${String(sides.foe.uid || '').trim()}`)
+        state.turnUid = newTurnUid
       }
 
       battle.battleState = state
