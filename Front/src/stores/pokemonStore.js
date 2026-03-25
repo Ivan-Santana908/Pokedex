@@ -17,16 +17,24 @@ export const usePokemonStore = defineStore('pokemon', () => {
   const allPokemonLoaded = ref(false)
   const searchSuggestion = ref(null) // Sugerencia para búsqueda
 
+  function ensureArray(value) {
+    return Array.isArray(value) ? value : []
+  }
+
   // Obtener lista de pokemon (con caché)
   async function fetchPokemonList(offset = 0, limit = 20) {
     loading.value = true
     error.value = null
     try {
       const data = await pokemonService.getPokemonList(offset, limit)
+      const results = ensureArray(data?.results)
+      if (results.length === 0) {
+        throw new Error('Respuesta invalida del backend en /pokemon. Verifica VITE_BACKEND_URL (debe terminar en /api).')
+      }
       
       // Obtener detalles de cada pokemon con caché
       const detailedPokemon = await Promise.all(
-        data.results.map(pokemon => {
+        results.map(pokemon => {
           if (pokemonCache.value[pokemon.name]) {
             return pokemonCache.value[pokemon.name]
           }
@@ -70,7 +78,10 @@ export const usePokemonStore = defineStore('pokemon', () => {
     loadingAll.value = true
     error.value = null
     try {
-      const results = await pokemonService.getAllPokemon()
+      const results = ensureArray(await pokemonService.getAllPokemon())
+      if (results.length === 0) {
+        throw new Error('No se pudo obtener el listado global de pokemon desde el backend.')
+      }
       
       // Cargar solo los primeros 151 pokémon (Gen 1) para mejor rendimiento
       const limitedResults = results.slice(0, 151)
@@ -110,7 +121,7 @@ export const usePokemonStore = defineStore('pokemon', () => {
   async function fetchTypes() {
     try {
       const data = await pokemonService.getPokemonTypes()
-      pokemonTypes.value = data.results
+      pokemonTypes.value = ensureArray(data?.results)
     } catch (err) {
       console.error('Error fetching types:', err)
     }
@@ -123,9 +134,10 @@ export const usePokemonStore = defineStore('pokemon', () => {
     try {
       selectedType.value = typeName
       const data = await pokemonService.getPokemonByType(typeName)
+      const typedPokemon = ensureArray(data?.pokemon)
       
       const detailedPokemon = await Promise.all(
-        data.pokemon.slice(0, 100).map(p => {
+        typedPokemon.slice(0, 100).map(p => {
           if (pokemonCache.value[p.pokemon.name]) {
             return pokemonCache.value[p.pokemon.name]
           }
