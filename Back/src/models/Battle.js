@@ -54,6 +54,10 @@ const battleSchema = new mongoose.Schema(
       type: [battleTurnSchema],
       default: [],
     },
+    battleState: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     summary: {
       type: String,
       default: '',

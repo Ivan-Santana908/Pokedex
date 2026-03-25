@@ -10,6 +10,8 @@ router.get('/', battleController.history.bind(battleController))
 router.get('/requests', battleController.listRequests.bind(battleController))
 router.post('/requests', battleController.sendRequest.bind(battleController))
 router.post('/requests/:battleId/respond', battleController.respondRequest.bind(battleController))
+router.get('/:battleId/state', battleController.getState.bind(battleController))
+router.post('/:battleId/turn', battleController.playTurn.bind(battleController))
 router.post('/:battleId/simulate', battleController.simulate.bind(battleController))
 
 export default router

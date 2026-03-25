@@ -19,11 +19,11 @@ const TYPE_CHART = {
   fairy: { strong: ['fighting', 'dragon', 'dark'], weak: ['fire', 'poison', 'steel'], immune: [] },
 }
 
-function normalizeType(type) {
+export function normalizeType(type) {
   return String(type || 'normal').toLowerCase()
 }
 
-function getTypeMultiplier(moveType, defenderTypes) {
+export function getTypeMultiplier(moveType, defenderTypes) {
   const move = TYPE_CHART[normalizeType(moveType)]
   if (!move) return 1
 
@@ -59,7 +59,7 @@ function pickBestMove(attacker, defender) {
   return bestMove
 }
 
-function calculateDamage(attacker, defender, move) {
+export function calculateDamage(attacker, defender, move) {
   const level = Number(attacker.level || 50)
   const isSpecial = move.category === 'special'
   const attackStat = isSpecial ? attacker.stats.specialAttack : attacker.stats.attack
@@ -76,7 +76,7 @@ function calculateDamage(attacker, defender, move) {
   return { damage: total, effectiveness }
 }
 
-function effectivenessMessage(multiplier) {
+export function effectivenessMessage(multiplier) {
   if (multiplier === 0) return 'No tuvo efecto.'
   if (multiplier >= 2) return 'Es super efectivo.'
   if (multiplier < 1) return 'No es muy efectivo.'

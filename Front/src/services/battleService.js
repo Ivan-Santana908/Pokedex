@@ -47,6 +47,16 @@ export async function respondRequest(token, battleId, action, opponentTeamId) {
   return data
 }
 
+export async function getBattleState(token, battleId) {
+  const { data } = await api.get(`/battles/${battleId}/state`, authHeaders(token))
+  return data
+}
+
+export async function playTurn(token, battleId, moveName) {
+  const { data } = await api.post(`/battles/${battleId}/turn`, { moveName }, authHeaders(token))
+  return data
+}
+
 export async function simulateBattle(token, battleId) {
   const { data } = await api.post(`/battles/${battleId}/simulate`, {}, authHeaders(token))
   return data
@@ -57,5 +67,7 @@ export default {
   listHistory,
   sendRequest,
   respondRequest,
+  getBattleState,
+  playTurn,
   simulateBattle,
 }
