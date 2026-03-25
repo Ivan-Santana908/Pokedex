@@ -1,0 +1,379 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ✨ GAME BOY COLORS ✨ */
+  --gb-screen: #9BBC0F;
+  --gb-screen-dark: #8BAC0F;
+  --gb-screen-light: #ABCE0F;
+  --gb-frame: #303030;
+  --gb-accent: #F3F3F3;
+  --gb-shadow: #1a1a1a;
+  --gb-highlight: #555555;
+  
+  /* Status colors */
+  --gb-red: #E74856;
+  --gb-blue: #2D5FA3;
+  --gb-yellow: #F7D84B;
+  --gb-green: #3EA575;
+  --gb-purple: #7B3FF2;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  background: #3f3f3f;
+  color: var(--gb-frame);
+  font-family: 'Courier New', monospace;
+}
+
+body {
+  background: linear-gradient(135deg, #616161 0%, #4b4b4b 50%, #3a3a3a 100%);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Press Start 2P', cursive;
+  color: var(--gb-frame);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 2px 2px 0px rgba(255, 255, 255, 0.1);
+}
+
+h1 { font-size: 16px; }
+h2 { font-size: 14px; }
+h3 { font-size: 12px; }
+
+/* GAME BOY SHELL - MAIN CONTAINER */
+.pokemon-shell {
+  background: linear-gradient(135deg, #5c5c5c 0%, #4a4a4a 50%, #3e3e3e 100%);
+  min-height: 100vh;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* POKEDEX PANEL - GREEN SCREEN */
+.pokedex-panel {
+  background: var(--gb-screen);
+  border: 6px solid var(--gb-frame);
+  border-radius: 4px;
+  padding: 12px;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 -2px 4px rgba(255, 255, 255, 0.1),
+    0 6px 12px rgba(0, 0, 0, 0.5);
+  color: var(--gb-frame);
+  position: relative;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+}
+
+.pokedex-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.03),
+    rgba(0, 0, 0, 0.03) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  border-radius: 3px;
+}
+
+/* BUTTONS - GAME BOY STYLE */
+.pkmn-btn,
+button {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 11px;
+  border: 3px solid var(--gb-frame);
+  border-radius: 2px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.1s cubic-bezier(0.2, 0.85, 0.32, 1);
+  box-shadow: 
+    inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.2),
+    0 3px 0 rgba(0, 0, 0, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+  user-select: none;
+}
+
+.pkmn-btn:hover:not(:disabled),
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 
+    inset 0 -2px 0 rgba(0, 0, 0, 0.3),
+    inset 0 2px 0 rgba(255, 255, 255, 0.2),
+    0 5px 0 rgba(0, 0, 0, 0.4);
+}
+
+.pkmn-btn:active,
+button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.pkmn-btn:disabled,
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Red Button */
+.pkmn-btn.bg-red-500,
+button.bg-red-500 {
+  background: var(--gb-red);
+  color: white;
+}
+
+.pkmn-btn.bg-red-600,
+button.bg-red-600 {
+  background: #D63C45;
+  color: white;
+}
+
+/* Blue Button */
+.pkmn-btn.bg-blue-500,
+.pkmn-btn.bg-blue-600,
+.pkmn-btn.bg-indigo-500,
+.pkmn-btn.bg-indigo-600,
+button.bg-blue-500,
+button.bg-blue-600,
+button.bg-indigo-500,
+button.bg-indigo-600 {
+  background: var(--gb-blue);
+  color: var(--gb-accent);
+}
+
+/* Green Button */
+.pkmn-btn.bg-emerald-600,
+.pkmn-btn.bg-green-600,
+button.bg-emerald-600,
+button.bg-green-600 {
+  background: var(--gb-green);
+  color: var(--gb-accent);
+}
+
+/* Yellow Button */
+.pkmn-btn.bg-yellow-300,
+button.bg-yellow-300 {
+  background: var(--gb-yellow);
+  color: var(--gb-frame);
+}
+
+/* Purple/Violet Button */
+.pkmn-btn.bg-violet-600,
+.pkmn-btn.bg-fuchsia-600,
+button.bg-violet-600,
+button.bg-fuchsia-600 {
+  background: var(--gb-purple);
+  color: var(--gb-accent);
+}
+
+/* Gray/Slate Button */
+.pkmn-btn.bg-slate-600,
+.pkmn-btn.bg-slate-700,
+.pkmn-btn.bg-slate-800,
+.pkmn-btn.bg-gray-400,
+.pkmn-btn.bg-gray-500,
+.pkmn-btn.bg-gray-600,
+.pkmn-btn.bg-gray-700,
+button.bg-slate-600,
+button.bg-slate-700,
+button.bg-slate-800,
+button.bg-gray-400,
+button.bg-gray-500,
+button.bg-gray-600,
+button.bg-gray-700 {
+  background: #666666;
+  color: var(--gb-accent);
+}
+
+/* INPUTS - GAME BOY STYLE */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+textarea {
+  font-family: 'Courier New', monospace;
+  background: var(--gb-screen);
+  border: 3px solid var(--gb-frame);
+  border-radius: 2px;
+  padding: 8px;
+  color: var(--gb-frame);
+  font-size: 11px;
+  font-weight: bold;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.15s;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+textarea:focus {
+  outline: none;
+  background: var(--gb-screen-light);
+  border-color: var(--gb-frame);
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.2),
+    0 0 0 3px var(--gb-frame);
+}
+
+input::placeholder {
+  color: var(--gb-frame);
+  opacity: 0.6;
+}
+
+/* CHECKBOX & RADIO */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--gb-blue);
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+/* TRAINER CHIP - BADGE */
+.trainer-chip {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--gb-yellow), #D4AF37);
+  color: var(--gb-frame);
+  padding: 6px 10px;
+  border-radius: 2px;
+  font-family: 'Press Start 2P', cursive;
+  font-size: 7px;
+  font-weight: bold;
+  border: 2px solid var(--gb-frame);
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* CARDS */
+.card {
+  border: 3px solid var(--gb-frame);
+  background: var(--gb-screen);
+  border-radius: 2px;
+  box-shadow: 
+    inset 0 2px 0 rgba(255, 255, 255, 0.1),
+    0 4px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* GRID & LAYOUT */
+.grid {
+  display: grid;
+  gap: 12px;
+}
+
+.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+.space-y-3 { gap: 12px !important; }
+.space-y-4 { gap: 16px !important; }
+.gap-2 { gap: 8px !important; }
+.gap-3 { gap: 12px !important; }
+.gap-4 { gap: 16px !important; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--gb-frame);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, var(--gb-highlight), var(--gb-accent));
+  border: 1px solid var(--gb-frame);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gb-accent);
+}
+
+/* TEXT UTILITIES */
+.text-xs { font-size: 9px; }
+.text-sm { font-size: 10px; }
+.text-base { font-size: 12px; }
+.text-lg { font-size: 14px; }
+
+.text-gray-900 { color: var(--gb-frame); }
+.text-gray-700 { color: var(--gb-frame); }
+.text-gray-600 { color: var(--gb-frame); }
+.text-white { color: var(--gb-accent); }
+
+.font-black,
+.font-bold {
+  font-weight: bold;
+}
+
+.capitalize { text-transform: uppercase; }
+.uppercase { text-transform: uppercase; }
+
+/* BADGES & COLORS */
+.bg-red-500 { background: var(--gb-red); }
+.bg-blue-500 { background: var(--gb-blue); }
+.bg-yellow-300 { background: var(--gb-yellow); }
+.bg-green-600 { background: var(--gb-green); }
+
+.border-red-200 { border-color: var(--gb-frame); }
+.border-blue-200 { border-color: var(--gb-frame); }
+.border-2 { border-width: 2px; }
+
+/* TRANSITIONS & ANIMATIONS */
+.transition { transition: all 0.15s ease; }
+.transition-all { transition: all 0.15s ease; }
+
+/* ROUNDED CORNERS - GAME BOY STYLE */
+.rounded-xl { border-radius: 4px; }
+.rounded-lg { border-radius: 3px; }
+.rounded-full { border-radius: 50%; }
+
+/* RESPONSIVE */
+@media (max-width: 640px) {
+  h1 { font-size: 14px; }
+  h2 { font-size: 12px; }
+  h3 { font-size: 10px; }
+  
+  .pokedex-panel {
+    border-width: 4px;
+    padding: 10px;
+  }
+  
+  .pkmn-btn,
+  button {
+    font-size: 10px;
+    padding: 6px 10px;
+  }
+  
+  .grid-cols-3 { grid-template-columns: repeat(2, 1fr); }
+  .grid-cols-4 { grid-template-columns: repeat(2, 1fr); }
+}
