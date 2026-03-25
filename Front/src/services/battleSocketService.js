@@ -2,6 +2,8 @@ import io from 'socket.io-client'
 import { getBackendUrl } from './apiBaseUrl'
 
 let socket = null
+let battleRefreshCallback = null
+let requestRefreshCallback = null
 
 export const battleSocketService = {
   // Conectar al servidor WebSocket
@@ -36,6 +38,16 @@ export const battleSocketService = {
     }
   },
 
+  // Registrar callback para refrescar batalla cuando se reciba actualización
+  onBattleRefresh(callback) {
+    battleRefreshCallback = callback
+  },
+
+  // Registrar callback para refrescar solicitudes cuando se reciba actualización
+  onRequestRefresh(callback) {
+    requestRefreshCallback = callback
+  },
+
   // Unirse a una sala de batalla
   joinBattle(battleId, userId) {
     if (!socket) this.connect()
@@ -61,16 +73,46 @@ export const battleSocketService = {
     socket.emit('battle-state-update', battleId, battleState)
   },
 
+  // Notificar nueva solicitud de batalla
+  notifyNewRequest(challengerId, challengerName) {
+    if (!socket) this.connect()
+    socket.emit('new-battle-request', { challengerId, challengerName })
+  },
+
   // Escuchar actualizaciones de turno
   onTurnUpdate(callback) {
     if (!socket) this.connect()
-    socket.on('turn-update', callback)
+    socket.on('turn-update', () => {
+      callback()
+      // Auto-refrescar batalla cuando hay actualización de turno
+      if (battleRefreshCallback) {
+        setTimeout(() => battleRefreshCallback(), 100)
+      }
+    })
   },
 
   // Escuchar cambios de estado
   onStateChanged(callback) {
     if (!socket) this.connect()
-    socket.on('state-changed', callback)
+    socket.on('state-changed', () => {
+      callback()
+      // Auto-refrescar batalla cuando hay cambio de estado
+      if (battleRefreshCallback) {
+        setTimeout(() => battleRefreshCallback(), 100)
+      }
+    })
+  },
+
+  // Escuchar nuevas solicitudes de batalla
+  onNewRequest(callback) {
+    if (!socket) this.connect()
+    socket.on('new-battle-request', () => {
+      callback()
+      // Auto-refrescar solicitudes cuando hay una nueva
+      if (requestRefreshCallback) {
+        setTimeout(() => requestRefreshCallback(), 100)
+      }
+    })
   },
 
   // Remover listener de turno
@@ -81,6 +123,11 @@ export const battleSocketService = {
   // Remover listener de estado
   offStateChanged() {
     if (socket) socket.off('state-changed')
+  },
+
+  // Remover listener de solicitudes
+  offNewRequest() {
+    if (socket) socket.off('new-battle-request')
   },
 
   // Obtener instance de socket

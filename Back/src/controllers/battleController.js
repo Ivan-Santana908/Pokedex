@@ -185,6 +185,13 @@ export class BattleController {
 
       await sendPushToUser(opponent._id, payload)
 
+      // Emitir evento WebSocket al oponente
+      req.io.emit('new-battle-request', {
+        challengerId: req.user.uid,
+        challengerName: req.user.username,
+        battleId: battle._id.toString(),
+      })
+
       return res.status(201).json({ battle })
     } catch (error) {
       next(error)
@@ -488,6 +495,17 @@ export class BattleController {
 
       battle.battleState = state
       await battle.save()
+
+      // Emitir evento WebSocket a ambos jugadores
+      const roomId = `battle-${battleId}`
+      req.io.to(roomId).emit('turn-update', {
+        message: turnRecord.message,
+        damage,
+        effectiveness,
+        attacker: attacker.pokemonName,
+        defender: defender.pokemonName,
+      })
+      req.io.to(roomId).emit('state-changed', state)
 
       return res.json({ battle })
     } catch (error) {

@@ -257,6 +257,8 @@ const lastBattleResult = ref(null)
 const liveBattleId = ref('')
 const liveBattle = ref(null)
 const pokemonDetails = ref({}) // Guardar detalles con imágenes
+let requestPoller = null // Polling de solicitudes de batalla
+let battleUpdatePoller = null // Polling fallback para batallas
 
 const acceptedBattles = computed(() => battleHistory.value.filter((battle) => battle.status === 'accepted'))
 const myUid = computed(() => authStore.user?.uid || '')
@@ -431,6 +433,16 @@ async function refreshLiveBattle() {
 function setupWebSocket() {
   battleSocketService.connect()
   
+  // Registrar callback para auto-refrescar batalla cuando hay cambios
+  battleSocketService.onBattleRefresh(() => {
+    refreshLiveBattle()
+  })
+
+  // Registrar callback para auto-refrescar solicitudes cuando hay nuevas
+  battleSocketService.onRequestRefresh(() => {
+    loadBattleData()
+  })
+
   // Escuchar actualizaciones de turno en tiempo real
   battleSocketService.onTurnUpdate((turnData) => {
     if (liveBattle.value?.battleState) {
@@ -445,11 +457,17 @@ function setupWebSocket() {
       liveBattle.value.battleState = newState
     }
   })
+
+  // Escuchar nuevas solicitudes de batalla
+  battleSocketService.onNewRequest(() => {
+    loadBattleData()
+  })
 }
 
 function teardownWebSocket() {
   battleSocketService.offTurnUpdate()
   battleSocketService.offStateChanged()
+  battleSocketService.offNewRequest()
   battleSocketService.disconnect()
 }
 
@@ -463,7 +481,18 @@ async function openLiveBattle(battleId) {
     await refreshLiveBattle()
     setupWebSocket()
     battleSocketService.joinBattle(battleId, myUid.value)
-    message.value = 'Combate en vivo cargado. WebSocket conectado.'
+    
+    // Polling fallback de 1.5 segundos como respaldo si WebSocket falla
+    if (battleUpdatePoller) clearInterval(battleUpdatePoller)
+    battleUpdatePoller = setInterval(async () => {
+      try {
+        await refreshLiveBattle()
+      } catch (err) {
+        console.error('Polling error:', err)
+      }
+    }, 1500)
+    
+    message.value = 'Combate en vivo cargado. WebSocket + Polling activos.'
   } catch (err) {
     messageError.value = true
     message.value = err?.response?.data?.error || 'No se pudo abrir la batalla en vivo.'
@@ -507,15 +536,43 @@ function closeLiveBattle() {
   liveBattle.value = null
   pokemonDetails.value = {}
   teardownWebSocket()
+  
+  // Limpiar polling fallback
+  if (battleUpdatePoller) {
+    clearInterval(battleUpdatePoller)
+    battleUpdatePoller = null
+  }
 }
 
 onMounted(async () => {
   if (!authStore.isAuthenticated) return
   await Promise.all([teamStore.loadTeams(), friendStore.refreshAll()])
   await loadBattleData()
+  
+  // Iniciar WebSocket y polling de solicitudes
+  battleSocketService.connect()
+  battleSocketService.onRequestRefresh(() => loadBattleData())
+  battleSocketService.onNewRequest(() => loadBattleData())
+  
+  // Polling cada 2 segundos para solicitudes de batalla (fallback + sincronización)
+  requestPoller = setInterval(() => {
+    loadBattleData()
+  }, 2000)
 })
 
 onUnmounted(() => {
   closeLiveBattle()
+  
+  // Limpiar polling de solicitudes
+  if (requestPoller) {
+    clearInterval(requestPoller)
+    requestPoller = null
+  }
+  
+  // Limpiar polling fallback de batalla si existe
+  if (battleUpdatePoller) {
+    clearInterval(battleUpdatePoller)
+    battleUpdatePoller = null
+  }
 })
 </script>

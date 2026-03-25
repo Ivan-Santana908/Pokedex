@@ -78,6 +78,12 @@ app.use(cors(corsOptions))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+// Middleware para pasar io a los controladores
+app.use((req, res, next) => {
+  req.io = io
+  next()
+})
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' })
