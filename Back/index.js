@@ -17,19 +17,42 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 3000
 
+function normalizeOrigin(value) {
+  return String(value || '')
+    .replace(/^['\"]|['\"]$/g, '')
+    .replace(/\/$/, '')
+    .trim()
+}
+
+function parseAllowedOrigins() {
+  const raw = String(process.env.CORS_ORIGIN || '')
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map(normalizeOrigin)
+    .filter(Boolean)
+}
+
 // Middleware
 const corsOptions = {
   origin: function (origin, callback) {
     // Aceptar requests sin origin (mobile apps, curl, etc)
     if (!origin) return callback(null, true)
+    const normalizedOrigin = normalizeOrigin(origin)
+    const allowedOrigins = parseAllowedOrigins()
     
     // Aceptar cualquier localhost
-    if (origin.includes('localhost')) {
+    if (normalizedOrigin.includes('localhost')) {
+      return callback(null, true)
+    }
+
+    // Aceptar dominios de Railway (frontend desplegado)
+    if (normalizedOrigin.endsWith('.railway.app')) {
       return callback(null, true)
     }
     
-    // Aceptar CORS_ORIGIN específico si está configurado
-    if (process.env.CORS_ORIGIN && origin === process.env.CORS_ORIGIN) {
+    // Aceptar CORS_ORIGIN específico (soporta uno o varios separados por coma)
+    if (allowedOrigins.includes(normalizedOrigin)) {
       return callback(null, true)
     }
     
