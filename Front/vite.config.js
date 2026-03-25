@@ -48,6 +48,12 @@ export default defineConfig({
     host: 'localhost',
     port: 5173,
   },
+  preview: {
+    host: '0.0.0.0',
+    port: Number(process.env.PORT) || 4173,
+    // Allow Railway public domains during preview in production.
+    allowedHosts: ['.railway.app', 'localhost'],
+  },
   optimizeDeps: {
     include: ['vue', 'vue-router', 'pinia', 'axios']
   }
