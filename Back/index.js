@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import { createServer } from 'http'
+import { Server } from 'socket.io'
 import pokemonRoutes from './src/routes/pokemonRoutes.js'
 import authRoutes from './src/routes/authRoutes.js'
 import userRoutes from './src/routes/userRoutes.js'
@@ -15,7 +17,17 @@ import { connectDB } from './src/config/db.js'
 dotenv.config()
 
 const app = express()
+const httpServer = createServer(app)
+const io = new Server(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+})
 const PORT = process.env.PORT || 3000
+
+// WebSocket battle rooms store
+const battleRooms = new Map()
 
 function normalizeOrigin(value) {
   return String(value || '')
@@ -89,10 +101,41 @@ app.use((req, res) => {
 // Error handler
 app.use(errorHandler)
 
+// WebSocket event handlers
+io.on('connection', (socket) => {
+  console.log('WebSocket client connected:', socket.id)
+
+  // Batalla en vivo: unirse a sala de batalla
+  socket.on('join-battle', (battleId, userId) => {
+    const roomId = `battle-${battleId}`
+    socket.join(roomId)
+    battleRooms.set(roomId, { battleId, players: new Set([...battleRooms.get(roomId)?.players || [], userId]) })
+    console.log(`Player ${userId} joined battle room ${roomId}`)
+  })
+
+  // Batalla en vivo: turno jugado
+  socket.on('play-turn', (battleId, turnData) => {
+    const roomId = `battle-${battleId}`
+    io.to(roomId).emit('turn-update', turnData)
+    console.log(`Turn played in battle ${battleId}:`, turnData.message)
+  })
+
+  // Batalla en vivo: estado actualizado
+  socket.on('battle-state-update', (battleId, battleState) => {
+    const roomId = `battle-${battleId}`
+    io.to(roomId).emit('state-changed', battleState)
+  })
+
+  socket.on('disconnect', () => {
+    console.log('WebSocket client disconnected:', socket.id)
+  })
+})
+
 connectDB()
   .then(() => {
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`)
+      console.log(`WebSocket server ready`)
       console.log(`CORS origin: ${process.env.CORS_ORIGIN || '*'}`)
     })
   })

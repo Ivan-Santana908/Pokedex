@@ -117,51 +117,103 @@
       </div>
 
       <div v-if="liveBattle" class="pokedex-panel p-6 border-2 border-fuchsia-200 mb-8">
-        <h2 class="text-4xl text-gray-900 mb-2">Combate en vivo</h2>
-        <p class="text-sm text-gray-700 mb-4">
-          Turno de: <strong>{{ liveBattle.battleState?.turnUid }}</strong>
-        </p>
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-4xl text-gray-900">Combate en vivo 🎮</h2>
+          <button @click="closeLiveBattle" class="pkmn-btn bg-red-600 hover:bg-red-700 text-white font-black py-2 px-4 rounded-xl">
+            ✕ Cerrar
+          </button>
+        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <div class="border rounded-xl p-3 bg-white">
-            <p class="font-black text-gray-900 mb-1">Tu Pokemon activo</p>
-            <p class="text-sm text-gray-700 mb-1">{{ myActivePokemon ? myActivePokemon.pokemonName : '-' }}</p>
-            <p class="text-xs text-gray-600 mb-2">HP {{ myActivePokemon?.currentHp || 0 }}/{{ myActivePokemon?.maxHp || 0 }}</p>
-            <div class="w-full h-3 bg-gray-200 rounded overflow-hidden">
-              <div class="h-3 bg-green-500" :style="{ width: `${hpPercent(myActivePokemon)}%` }"></div>
+        <!-- Battle Arena -->
+        <div class="bg-gradient-to-b from-sky-300 to-sky-100 rounded-xl p-6 mb-6 border-4 border-sky-400 shadow-lg">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+            <!-- Foe Pokemon -->
+            <div class="text-center">
+              <p class="text-sm font-bold text-gray-700 mb-2">{{ foeSide?.username || 'Rival' }}</p>
+              <img
+                :src="getPokemonImage(foeActivePokemon?.pokemonId)"
+                :alt="foeActivePokemon?.pokemonName"
+                class="w-48 h-48 mx-auto object-contain filter drop-shadow-lg transform scale-x-[-1]"
+              />
+              <p class="font-bold text-gray-900 mt-2 capitalize">{{ foeActivePokemon?.pokemonName }}</p>
+              <p class="text-xs text-gray-600 mb-1">Nivel {{ foeActivePokemon?.level || 50 }}</p>
+              
+              <!-- HP Bar Rival -->
+              <div class="bg-gray-200 rounded-full h-6 border-2 border-gray-400 mb-2 overflow-hidden">
+                <div 
+                  class="h-full bg-gradient-to-r from-red-500 to-red-400 transition-all duration-300"
+                  :style="{ width: `${hpPercent(foeActivePokemon)}%` }"
+                />
+              </div>
+              <p class="text-xs font-semibold text-gray-700">
+                HP: {{ foeActivePokemon?.currentHp || 0 }}/{{ foeActivePokemon?.maxHp || 0 }}
+              </p>
             </div>
-          </div>
 
-          <div class="border rounded-xl p-3 bg-white">
-            <p class="font-black text-gray-900 mb-1">Pokemon rival activo</p>
-            <p class="text-sm text-gray-700 mb-1">{{ foeActivePokemon ? foeActivePokemon.pokemonName : '-' }}</p>
-            <p class="text-xs text-gray-600 mb-2">HP {{ foeActivePokemon?.currentHp || 0 }}/{{ foeActivePokemon?.maxHp || 0 }}</p>
-            <div class="w-full h-3 bg-gray-200 rounded overflow-hidden">
-              <div class="h-3 bg-red-500" :style="{ width: `${hpPercent(foeActivePokemon)}%` }"></div>
+            <!-- My Pokemon -->
+            <div class="text-center">
+              <p class="text-sm font-bold text-gray-700 mb-2">{{ mySide?.username || 'Tú' }}</p>
+              <img
+                :src="getPokemonImage(myActivePokemon?.pokemonId)"
+                :alt="myActivePokemon?.pokemonName"
+                class="w-48 h-48 mx-auto object-contain filter drop-shadow-lg"
+              />
+              <p class="font-bold text-gray-900 mt-2 capitalize">{{ myActivePokemon?.pokemonName }}</p>
+              <p class="text-xs text-gray-600 mb-1">Nivel {{ myActivePokemon?.level || 50 }}</p>
+              
+              <!-- HP Bar Player -->
+              <div class="bg-gray-200 rounded-full h-6 border-2 border-gray-400 mb-2 overflow-hidden">
+                <div 
+                  class="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-300"
+                  :style="{ width: `${hpPercent(myActivePokemon)}%` }"
+                />
+              </div>
+              <p class="text-xs font-semibold text-gray-700">
+                HP: {{ myActivePokemon?.currentHp || 0 }}/{{ myActivePokemon?.maxHp || 0 }}
+              </p>
             </div>
           </div>
         </div>
 
-        <div v-if="isLiveFinished" class="mb-3 text-green-700 font-semibold">
-          {{ liveBattle.battleState?.summary || 'La batalla ha terminado.' }}
+        <!-- Turn indicator -->
+        <div class="text-center mb-4 p-3 rounded-xl bg-yellow-100 border-2 border-yellow-400">
+          <p v-if="isLiveFinished" class="text-lg font-bold text-green-700">
+            ✓ {{ liveBattle.battleState?.summary || 'Batalla finalizada' }}
+          </p>
+          <p v-else class="text-lg font-bold" :class="isMyTurn ? 'text-green-700' : 'text-red-700'">
+            {{ isMyTurn ? '👉 Tu turno - Elige un ataque' : '⏳ Espera el turno del rival...' }}
+          </p>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+        <!-- Move buttons -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
           <button
             v-for="move in (myActivePokemon?.moves || [])"
             :key="move.name"
             @click="playMove(move.name)"
             :disabled="!isMyTurn || isLiveFinished || loadingAction"
-            class="pkmn-btn bg-slate-700 hover:bg-slate-800 text-white py-2 rounded-xl disabled:opacity-50"
+            class="pkmn-btn bg-gradient-to-br from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white font-bold py-3 rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed uppercase text-sm"
           >
-            {{ move.name }}
+            {{ loadingAction ? '...' : move.name }}
           </button>
         </div>
 
-        <div class="max-h-72 overflow-y-auto border rounded-xl p-3 bg-gray-50">
-          <p v-for="(turn, idx) in (liveBattle.battleState?.log || []).slice(-20)" :key="idx" class="text-sm text-gray-700 mb-1">
-            - {{ turn.message }} ({{ turn.damage }} dano)
-          </p>
+        <!-- Battle Log -->
+        <div class="bg-gray-100 rounded-xl p-4 border-2 border-gray-300">
+          <h3 class="font-bold text-gray-900 mb-3 text-sm uppercase">Registro de batalla</h3>
+          <div class="max-h-48 overflow-y-auto space-y-1 bg-white p-3 rounded border border-gray-300">
+            <p v-if="!liveBattle.battleState?.log || liveBattle.battleState.log.length === 0" class="text-xs text-gray-500 italic">
+              Batalla iniciada...
+            </p>
+            <p 
+              v-for="(turn, idx) in (liveBattle.battleState?.log || []).slice(-20)" 
+              :key="idx" 
+              class="text-xs text-gray-700 font-semibold border-l-4 border-purple-400 pl-2"
+            >
+              <span class="text-purple-600">→</span> {{ turn.message }}
+              <span v-if="turn.damage" class="text-red-600">(-{{ turn.damage }} HP)</span>
+            </p>
+          </div>
         </div>
       </div>
 
@@ -184,6 +236,8 @@ import { useAuthStore } from '@/stores/authStore'
 import { useTeamStore } from '@/stores/teamStore'
 import { useFriendStore } from '@/stores/friendStore'
 import battleService from '@/services/battleService'
+import battleSocketService from '@/services/battleSocketService'
+import { pokemonService } from '@/services/pokemonService'
 
 const authStore = useAuthStore()
 const teamStore = useTeamStore()
@@ -202,7 +256,7 @@ const responseTeamByBattle = ref({})
 const lastBattleResult = ref(null)
 const liveBattleId = ref('')
 const liveBattle = ref(null)
-let livePoller = null
+const pokemonDetails = ref({}) // Guardar detalles con imágenes
 
 const acceptedBattles = computed(() => battleHistory.value.filter((battle) => battle.status === 'accepted'))
 const myUid = computed(() => authStore.user?.uid || '')
@@ -226,13 +280,17 @@ const foeSide = computed(() => {
 const myActivePokemon = computed(() => {
   const side = mySide.value
   if (!side) return null
-  return side.team?.[side.activeIndex] || null
+  const pokemon = side.team?.[side.activeIndex] || null
+  if (!pokemon) return null
+  return { ...pokemon, details: pokemonDetails.value[pokemon.pokemonId] }
 })
 
 const foeActivePokemon = computed(() => {
   const side = foeSide.value
   if (!side) return null
-  return side.team?.[side.activeIndex] || null
+  const pokemon = side.team?.[side.activeIndex] || null
+  if (!pokemon) return null
+  return { ...pokemon, details: pokemonDetails.value[pokemon.pokemonId] }
 })
 
 const isMyTurn = computed(() => {
@@ -245,6 +303,45 @@ const isLiveFinished = computed(() => liveBattle.value?.battleState?.phase === '
 function hpPercent(pokemon) {
   if (!pokemon || !pokemon.maxHp) return 0
   return Math.max(0, Math.min(100, Math.round((pokemon.currentHp / pokemon.maxHp) * 100)))
+}
+
+function getPokemonImage(pokemonId) {
+  const details = pokemonDetails.value[pokemonId]
+  if (!details) return '/pokeball.png' // Imagen por defecto
+  return details.sprites?.other?.['official-artwork']?.front_default || details.sprites?.front_default || '/pokeball.png'
+}
+
+function getPokemonType(pokemonId) {
+  const details = pokemonDetails.value[pokemonId]
+  return details?.types?.[0]?.type?.name || 'normal'
+}
+
+function getTypeColor(type) {
+  const typeColors = {
+    normal: 'bg-gray-400', fire: 'bg-red-500', water: 'bg-blue-500',
+    grass: 'bg-green-500', electric: 'bg-yellow-400', ice: 'bg-cyan-300',
+    fighting: 'bg-orange-700', poison: 'bg-purple-500', ground: 'bg-yellow-600',
+    flying: 'bg-indigo-300', psychic: 'bg-pink-500', bug: 'bg-lime-500',
+    rock: 'bg-gray-600', ghost: 'bg-purple-700', dragon: 'bg-indigo-600',
+    dark: 'bg-gray-800', steel: 'bg-gray-500', fairy: 'bg-pink-300'
+  }
+  return typeColors[type] || 'bg-gray-400'
+}
+
+async function loadPokemonDetails(pokemonIds) {
+  try {
+    const ids = [...new Set(pokemonIds)].filter(id => !pokemonDetails.value[id])
+    if (ids.length === 0) return
+    
+    const details = await pokemonService.getPokemonDetailsMultiple(ids)
+    details.forEach(detail => {
+      if (detail?.id) {
+        pokemonDetails.value[detail.id] = detail
+      }
+    })
+  } catch (err) {
+    console.error('Error loading pokemon details:', err)
+  }
 }
 
 async function loadBattleData() {
@@ -317,27 +414,43 @@ async function simulate(battleId) {
 
 async function refreshLiveBattle() {
   if (!authStore.token || !liveBattleId.value) return
-  const data = await battleService.getBattleState(authStore.token, liveBattleId.value)
-  liveBattle.value = data.battle
-}
+  try {
+    const data = await battleService.getBattleState(authStore.token, liveBattleId.value)
+    liveBattle.value = data.battle
 
-function stopLivePolling() {
-  if (livePoller) {
-    clearInterval(livePoller)
-    livePoller = null
+    // Cargar detalles de pokémon cuando sea necesario
+    const allPokemonIds = []
+    data.battle?.battleState?.challenger?.team?.forEach(p => allPokemonIds.push(p.pokemonId))
+    data.battle?.battleState?.opponent?.team?.forEach(p => allPokemonIds.push(p.pokemonId))
+    await loadPokemonDetails(allPokemonIds)
+  } catch (err) {
+    console.error('Error refreshing battle:', err)
   }
 }
 
-function startLivePolling() {
-  stopLivePolling()
-  livePoller = setInterval(async () => {
-    try {
-      await refreshLiveBattle()
-      if (isLiveFinished.value) stopLivePolling()
-    } catch {
-      // Ignore transient polling errors.
+function setupWebSocket() {
+  battleSocketService.connect()
+  
+  // Escuchar actualizaciones de turno en tiempo real
+  battleSocketService.onTurnUpdate((turnData) => {
+    if (liveBattle.value?.battleState) {
+      liveBattle.value.battleState.log = liveBattle.value.battleState.log || []
+      liveBattle.value.battleState.log.push(turnData)
     }
-  }, 3000)
+  })
+
+  // Escuchar cambios de estado en tiempo real
+  battleSocketService.onStateChanged((newState) => {
+    if (liveBattle.value) {
+      liveBattle.value.battleState = newState
+    }
+  })
+}
+
+function teardownWebSocket() {
+  battleSocketService.offTurnUpdate()
+  battleSocketService.offStateChanged()
+  battleSocketService.disconnect()
 }
 
 async function openLiveBattle(battleId) {
@@ -348,8 +461,9 @@ async function openLiveBattle(battleId) {
   try {
     liveBattleId.value = battleId
     await refreshLiveBattle()
-    startLivePolling()
-    message.value = 'Combate en vivo cargado.'
+    setupWebSocket()
+    battleSocketService.joinBattle(battleId, myUid.value)
+    message.value = 'Combate en vivo cargado. WebSocket conectado.'
   } catch (err) {
     messageError.value = true
     message.value = err?.response?.data?.error || 'No se pudo abrir la batalla en vivo.'
@@ -368,10 +482,17 @@ async function playMove(moveName) {
   try {
     const data = await battleService.playTurn(authStore.token, liveBattleId.value, moveName)
     liveBattle.value = data.battle
+    
+    // Notificar a otros jugadores del turno jugado
+    battleSocketService.notifyTurn(liveBattleId.value, {
+      message: `${myUid.value} usó ${moveName}`,
+      damage: 0
+    })
+
     if (isLiveFinished.value) {
       message.value = liveBattle.value?.battleState?.summary || 'La batalla termino.'
       await loadBattleData()
-      stopLivePolling()
+      teardownWebSocket()
     }
   } catch (err) {
     messageError.value = true
@@ -381,6 +502,13 @@ async function playMove(moveName) {
   }
 }
 
+function closeLiveBattle() {
+  liveBattleId.value = ''
+  liveBattle.value = null
+  pokemonDetails.value = {}
+  teardownWebSocket()
+}
+
 onMounted(async () => {
   if (!authStore.isAuthenticated) return
   await Promise.all([teamStore.loadTeams(), friendStore.refreshAll()])
@@ -388,6 +516,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  stopLivePolling()
+  closeLiveBattle()
 })
 </script>
