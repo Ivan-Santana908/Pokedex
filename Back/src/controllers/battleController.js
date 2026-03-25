@@ -490,7 +490,8 @@ export class BattleController {
       if (!selfAlive || !foeAlive) {
         setBattleFinished(battle, state)
       } else {
-        state.turnUid = sides.foe.uid
+        // Cambiar turno al oponente - asegurar que sea string
+        state.turnUid = String(sides.foe.uid || '')
       }
 
       battle.battleState = state
@@ -507,7 +508,13 @@ export class BattleController {
         moveName: selectedMove.name,
         timestamp: Date.now(),
       })
-      req.io.to(roomId).emit('state-changed', state)
+      
+      // Enviar el estado actualizado asegurando que turnUid sea el correcto
+      const stateToSend = {
+        ...state,
+        turnUid: String(state.turnUid || ''),
+      }
+      req.io.to(roomId).emit('state-changed', stateToSend)
 
       return res.json({ battle })
     } catch (error) {

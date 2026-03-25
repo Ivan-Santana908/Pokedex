@@ -265,16 +265,24 @@ const myUid = computed(() => authStore.user?.uid || '')
 const mySide = computed(() => {
   const state = liveBattle.value?.battleState
   if (!state) return null
-  if (state.challenger?.uid === myUid.value) return state.challenger
-  if (state.opponent?.uid === myUid.value) return state.opponent
+  const myUidStr = String(myUid.value || '').trim()
+  const challengerUid = String(state.challenger?.uid || '').trim()
+  const opponentUid = String(state.opponent?.uid || '').trim()
+  
+  if (myUidStr && challengerUid && myUidStr === challengerUid) return state.challenger
+  if (myUidStr && opponentUid && myUidStr === opponentUid) return state.opponent
   return null
 })
 
 const foeSide = computed(() => {
   const state = liveBattle.value?.battleState
   if (!state) return null
-  if (state.challenger?.uid === myUid.value) return state.opponent
-  if (state.opponent?.uid === myUid.value) return state.challenger
+  const myUidStr = String(myUid.value || '').trim()
+  const challengerUid = String(state.challenger?.uid || '').trim()
+  const opponentUid = String(state.opponent?.uid || '').trim()
+  
+  if (myUidStr && challengerUid && myUidStr === challengerUid) return state.opponent
+  if (myUidStr && opponentUid && myUidStr === opponentUid) return state.challenger
   return null
 })
 
@@ -296,7 +304,16 @@ const foeActivePokemon = computed(() => {
 
 const isMyTurn = computed(() => {
   const state = liveBattle.value?.battleState
-  return Boolean(state && state.turnUid === myUid.value)
+  const myUidStr = String(myUid.value || '').trim()
+  const turnUidStr = String(state?.turnUid || '').trim()
+  const isMy = myUidStr && turnUidStr && myUidStr === turnUidStr
+  
+  // Log para debug
+  if (state && !isMy) {
+    console.log('🔄 Turno actual:', turnUidStr, 'Mi UID:', myUidStr, 'Es mi turno:', isMy)
+  }
+  
+  return Boolean(isMy)
 })
 
 const isLiveFinished = computed(() => liveBattle.value?.battleState?.phase === 'finished')
@@ -417,6 +434,18 @@ async function refreshLiveBattle() {
   if (!authStore.token || !liveBattleId.value) return
   try {
     const data = await battleService.getBattleState(authStore.token, liveBattleId.value)
+    
+    // Normalizar UIDs a strings limpios
+    if (data.battle?.battleState) {
+      data.battle.battleState.turnUid = String(data.battle.battleState.turnUid || '').trim()
+      if (data.battle.battleState.challenger) {
+        data.battle.battleState.challenger.uid = String(data.battle.battleState.challenger.uid || '').trim()
+      }
+      if (data.battle.battleState.opponent) {
+        data.battle.battleState.opponent.uid = String(data.battle.battleState.opponent.uid || '').trim()
+      }
+    }
+    
     liveBattle.value = data.battle
 
     // Cargar detalles de pokémon cuando sea necesario
@@ -541,21 +570,42 @@ async function playMove(moveName) {
     
     // Actualizar estado desde respuesta del servidor (que ya incluye el turno en el log)
     if (data.battle?.battleState) {
-      liveBattle.value.battleState = {
-        ...liveBattle.value.battleState,
-        ...data.battle.battleState,
-        challenger: data.battle.battleState.challenger,
-        opponent: data.battle.battleState.opponent,
+      const newState = data.battle.battleState
+      
+      // Asegurar que turnUid es string limpio
+      if (newState.turnUid) {
+        newState.turnUid = String(newState.turnUid).trim()
       }
       
-      // Asegurar que el último turno tiene metadata para el key
-      if (Array.isArray(data.battle.battleState.log) && data.battle.battleState.log.length > 0) {
-        const lastTurn = data.battle.battleState.log[data.battle.battleState.log.length - 1]
-        if (!lastTurn.logId) {
-          lastTurn.logId = `turn-${Date.now()}-${Math.random()}`
-          lastTurn.timestamp = Date.now()
-        }
+      // Hacer merge cuidadoso del estado
+      liveBattle.value.battleState = {
+        ...liveBattle.value.battleState,
+        phase: newState.phase,
+        turnUid: newState.turnUid,
+        turnCount: newState.turnCount,
+        summary: newState.summary,
+        log: Array.isArray(newState.log) ? newState.log : [],
+        challenger: {
+          ...newState.challenger,
+          uid: String(newState.challenger?.uid || '').trim(),
+        },
+        opponent: {
+          ...newState.opponent,
+          uid: String(newState.opponent?.uid || '').trim(),
+        },
       }
+      
+      // Asegurar que cada turno en el log tiene metadata
+      if (Array.isArray(liveBattle.value.battleState.log)) {
+        liveBattle.value.battleState.log.forEach((turn, idx) => {
+          if (!turn.logId) {
+            turn.logId = `turn-${Date.now()}-${idx}`
+            turn.timestamp = Date.now()
+          }
+        })
+      }
+      
+      console.log('✅ Estado actualizado. Nuevo turnUid:', newState.turnUid, 'Mi UID:', myUid.value)
     }
 
     if (isLiveFinished.value) {
