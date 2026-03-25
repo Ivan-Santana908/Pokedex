@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v7'
+const CACHE_VERSION = 'v8'
 const APP_SHELL_CACHE = `pokedex-app-shell-${CACHE_VERSION}`
 const DYNAMIC_CACHE = `pokedex-dynamic-${CACHE_VERSION}`
 const urlsToCache = [
@@ -45,6 +45,12 @@ self.addEventListener('fetch', event => {
   const isAppShellRequest =
     isSameOrigin &&
     urlsToCache.includes(requestUrl.pathname)
+
+  // No interceptar requests cross-origin (backend Railway, socket.io, CDNs, etc.)
+  // Permite que el navegador maneje la red directamente y evita 503 falsos del SW.
+  if (!isSameOrigin) {
+    return
+  }
 
   // Para API calls, usar network first y cache dinámico
   if (event.request.url.includes('pokeapi.co')) {

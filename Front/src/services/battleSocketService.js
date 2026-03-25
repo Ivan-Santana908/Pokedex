@@ -2,8 +2,6 @@ import io from 'socket.io-client'
 import { getBackendUrl } from './apiBaseUrl'
 
 let socket = null
-let battleRefreshCallback = null
-let requestRefreshCallback = null
 
 export const battleSocketService = {
   // Conectar al servidor WebSocket
@@ -36,16 +34,6 @@ export const battleSocketService = {
       socket.disconnect()
       socket = null
     }
-  },
-
-  // Registrar callback para refrescar batalla cuando se reciba actualización
-  onBattleRefresh(callback) {
-    battleRefreshCallback = callback
-  },
-
-  // Registrar callback para refrescar solicitudes cuando se reciba actualización
-  onRequestRefresh(callback) {
-    requestRefreshCallback = callback
   },
 
   // Unirse a una sala de batalla
@@ -82,36 +70,24 @@ export const battleSocketService = {
   // Escuchar actualizaciones de turno
   onTurnUpdate(callback) {
     if (!socket) this.connect()
-    socket.on('turn-update', () => {
-      callback()
-      // Auto-refrescar batalla cuando hay actualización de turno
-      if (battleRefreshCallback) {
-        setTimeout(() => battleRefreshCallback(), 100)
-      }
+    socket.on('turn-update', (payload) => {
+      callback(payload)
     })
   },
 
   // Escuchar cambios de estado
   onStateChanged(callback) {
     if (!socket) this.connect()
-    socket.on('state-changed', () => {
-      callback()
-      // Auto-refrescar batalla cuando hay cambio de estado
-      if (battleRefreshCallback) {
-        setTimeout(() => battleRefreshCallback(), 100)
-      }
+    socket.on('state-changed', (payload) => {
+      callback(payload)
     })
   },
 
   // Escuchar nuevas solicitudes de batalla
   onNewRequest(callback) {
     if (!socket) this.connect()
-    socket.on('new-battle-request', () => {
-      callback()
-      // Auto-refrescar solicitudes cuando hay una nueva
-      if (requestRefreshCallback) {
-        setTimeout(() => requestRefreshCallback(), 100)
-      }
+    socket.on('new-battle-request', (payload) => {
+      callback(payload)
     })
   },
 

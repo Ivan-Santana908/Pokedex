@@ -460,17 +460,6 @@ async function refreshLiveBattle() {
 
 function setupWebSocket() {
   battleSocketService.connect()
-  
-  // Registrar callback para auto-refrescar batalla cuando hay cambios
-  battleSocketService.onBattleRefresh(() => {
-    // Solo refrescar si el WebSocket no actualizó el estado completo
-    // Por defecto confiamos en WebSocket
-  })
-
-  // Registrar callback para auto-refrescar solicitudes cuando hay nuevas
-  battleSocketService.onRequestRefresh(() => {
-    loadBattleData()
-  })
 
   // Escuchar actualizaciones de turno en tiempo real
   battleSocketService.onTurnUpdate((turnData) => {
@@ -635,7 +624,6 @@ onMounted(async () => {
   
   // Iniciar WebSocket y polling de solicitudes
   battleSocketService.connect()
-  battleSocketService.onRequestRefresh(() => loadBattleData())
   battleSocketService.onNewRequest(() => loadBattleData())
   
   // Polling cada 2 segundos para solicitudes de batalla (fallback + sincronización)
