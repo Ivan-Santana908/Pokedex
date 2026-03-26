@@ -133,6 +133,8 @@
               <img
                 :src="getPokemonImage(foeActivePokemon?.pokemonId)"
                 :alt="foeActivePokemon?.pokemonName"
+                :data-pokemon-id="foeActivePokemon?.pokemonId || ''"
+                @error="handleBattleImageError"
                 class="w-48 h-48 mx-auto object-contain filter drop-shadow-lg transform scale-x-[-1]"
               />
               <p class="font-bold text-gray-900 mt-2 capitalize">{{ foeActivePokemon?.pokemonName }}</p>
@@ -156,6 +158,8 @@
               <img
                 :src="getPokemonImage(myActivePokemon?.pokemonId)"
                 :alt="myActivePokemon?.pokemonName"
+                :data-pokemon-id="myActivePokemon?.pokemonId || ''"
+                @error="handleBattleImageError"
                 class="w-48 h-48 mx-auto object-contain filter drop-shadow-lg"
               />
               <p class="font-bold text-gray-900 mt-2 capitalize">{{ myActivePokemon?.pokemonName }}</p>
@@ -262,12 +266,16 @@ let requestPoller = null // Polling de solicitudes de batalla
 const acceptedBattles = computed(() => battleHistory.value.filter((battle) => battle.status === 'accepted'))
 const myUid = computed(() => authStore.user?.uid || '')
 
+function normalizeUid(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
 const mySide = computed(() => {
   const state = liveBattle.value?.battleState
   if (!state) return null
-  const myUidStr = String(myUid.value || '').trim()
-  const challengerUid = String(state.challenger?.uid || '').trim()
-  const opponentUid = String(state.opponent?.uid || '').trim()
+  const myUidStr = normalizeUid(myUid.value)
+  const challengerUid = normalizeUid(state.challenger?.uid)
+  const opponentUid = normalizeUid(state.opponent?.uid)
   
   if (myUidStr && challengerUid && myUidStr === challengerUid) return state.challenger
   if (myUidStr && opponentUid && myUidStr === opponentUid) return state.opponent
@@ -277,9 +285,9 @@ const mySide = computed(() => {
 const foeSide = computed(() => {
   const state = liveBattle.value?.battleState
   if (!state) return null
-  const myUidStr = String(myUid.value || '').trim()
-  const challengerUid = String(state.challenger?.uid || '').trim()
-  const opponentUid = String(state.opponent?.uid || '').trim()
+  const myUidStr = normalizeUid(myUid.value)
+  const challengerUid = normalizeUid(state.challenger?.uid)
+  const opponentUid = normalizeUid(state.opponent?.uid)
   
   if (myUidStr && challengerUid && myUidStr === challengerUid) return state.opponent
   if (myUidStr && opponentUid && myUidStr === opponentUid) return state.challenger
@@ -304,8 +312,8 @@ const foeActivePokemon = computed(() => {
 
 const isMyTurn = computed(() => {
   const state = liveBattle.value?.battleState
-  const myUidStr = String(myUid.value || '').trim()
-  const turnUidStr = String(state?.turnUid || '').trim()
+  const myUidStr = normalizeUid(myUid.value)
+  const turnUidStr = normalizeUid(state?.turnUid)
   const isMy = myUidStr && turnUidStr && myUidStr === turnUidStr
   
   // Log para debug
@@ -324,9 +332,30 @@ function hpPercent(pokemon) {
 }
 
 function getPokemonImage(pokemonId) {
+  const id = Number(pokemonId || 0)
   const details = pokemonDetails.value[pokemonId]
-  if (!details) return '/pokeball.png' // Imagen por defecto
-  return details.sprites?.other?.['official-artwork']?.front_default || details.sprites?.front_default || '/pokeball.png'
+  const artwork = details?.sprites?.other?.['official-artwork']?.front_default
+  const front = details?.sprites?.front_default
+
+  if (artwork) return artwork
+  if (front) return front
+  if (id > 0) {
+    return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`
+  }
+  return 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'
+}
+
+function handleBattleImageError(event) {
+  const el = event?.target
+  const id = Number(el?.dataset?.pokemonId || 0)
+  if (!el) return
+
+  if (id > 0) {
+    el.src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`
+    return
+  }
+
+  el.src = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png'
 }
 
 function getPokemonType(pokemonId) {
@@ -437,12 +466,12 @@ async function refreshLiveBattle() {
     
     // Normalizar UIDs a strings limpios
     if (data.battle?.battleState) {
-      data.battle.battleState.turnUid = String(data.battle.battleState.turnUid || '').trim()
+      data.battle.battleState.turnUid = normalizeUid(data.battle.battleState.turnUid)
       if (data.battle.battleState.challenger) {
-        data.battle.battleState.challenger.uid = String(data.battle.battleState.challenger.uid || '').trim()
+        data.battle.battleState.challenger.uid = normalizeUid(data.battle.battleState.challenger.uid)
       }
       if (data.battle.battleState.opponent) {
-        data.battle.battleState.opponent.uid = String(data.battle.battleState.opponent.uid || '').trim()
+        data.battle.battleState.opponent.uid = normalizeUid(data.battle.battleState.opponent.uid)
       }
     }
     
@@ -563,7 +592,7 @@ async function playMove(moveName) {
       
       // Asegurar que turnUid es string limpio
       if (newState.turnUid) {
-        newState.turnUid = String(newState.turnUid).trim()
+        newState.turnUid = normalizeUid(newState.turnUid)
       }
       
       // Hacer merge cuidadoso del estado
@@ -576,11 +605,11 @@ async function playMove(moveName) {
         log: Array.isArray(newState.log) ? newState.log : [],
         challenger: {
           ...newState.challenger,
-          uid: String(newState.challenger?.uid || '').trim(),
+          uid: normalizeUid(newState.challenger?.uid),
         },
         opponent: {
           ...newState.opponent,
-          uid: String(newState.opponent?.uid || '').trim(),
+          uid: normalizeUid(newState.opponent?.uid),
         },
       }
       
