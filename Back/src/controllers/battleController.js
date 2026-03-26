@@ -383,13 +383,22 @@ export class BattleController {
       
       // Normalizar UIDs en la respuesta
       if (battle.battleState) {
+        const challengerUid = normalizeUid(battle?.challenger?.uid)
+        const opponentUid = normalizeUid(battle?.opponent?.uid)
+
         if (battle.battleState.challenger) {
-          battle.battleState.challenger.uid = String(battle.battleState.challenger.uid || '').trim().toLowerCase()
+          battle.battleState.challenger.uid = challengerUid
         }
         if (battle.battleState.opponent) {
-          battle.battleState.opponent.uid = String(battle.battleState.opponent.uid || '').trim().toLowerCase()
+          battle.battleState.opponent.uid = opponentUid
         }
-        battle.battleState.turnUid = String(battle.battleState.turnUid || '').trim().toLowerCase()
+
+        const currentTurnUid = normalizeUid(battle.battleState.turnUid)
+        if (currentTurnUid !== challengerUid && currentTurnUid !== opponentUid) {
+          battle.battleState.turnUid = challengerUid
+        } else {
+          battle.battleState.turnUid = currentTurnUid
+        }
       }
 
       return res.json({ battle })
@@ -422,29 +431,42 @@ export class BattleController {
       }
 
       let state = battle.battleState || initializeBattleState(battle)
+      const challengerUid = normalizeUid(battle?.challenger?.uid)
+      const opponentUid = normalizeUid(battle?.opponent?.uid)
+      const actorSide = battle.challenger._id.equals(req.user._id) ? 'challenger' : 'opponent'
+      const actorUid = actorSide === 'challenger' ? challengerUid : opponentUid
       
       // Normalizar UIDs del estado recuperado
       if (state && state.challenger) {
-        state.challenger.uid = normalizeUid(state.challenger.uid)
+        state.challenger.uid = challengerUid
       }
       if (state && state.opponent) {
-        state.opponent.uid = normalizeUid(state.opponent.uid)
+        state.opponent.uid = opponentUid
       }
       if (state) {
         state.turnUid = normalizeUid(state.turnUid)
+        if (state.turnUid !== challengerUid && state.turnUid !== opponentUid) {
+          state.turnUid = challengerUid
+        }
       }
       if (state.phase === 'finished') {
         return res.status(409).json({ error: 'battle already finished', battle })
       }
-
-      // Determinar actor usando la relacion real del usuario con la batalla
-      const actorSide = battle.challenger._id.equals(req.user._id) ? 'challenger' : 'opponent'
-      const actorUid = normalizeUid(state?.[actorSide]?.uid || req.user.uid)
       const currentTurnUid = normalizeUid(state.turnUid)
       
       if (!currentTurnUid || currentTurnUid !== actorUid) {
         console.log(`❌ TURN VALIDATION FAILED: currentTurn=${currentTurnUid}, actor=${actorUid}`)
-        return res.status(409).json({ error: 'it is not your turn', battle })
+        return res.status(409).json({
+          error: 'it is not your turn',
+          debug: {
+            actorSide,
+            actorUid,
+            currentTurnUid,
+            challengerUid,
+            opponentUid,
+          },
+          battle,
+        })
       }
       
       console.log(`✅ TURN VALIDATION PASSED: currentTurn=${currentTurnUid}, actor=${actorUid}`)
@@ -530,8 +552,8 @@ export class BattleController {
       if (!selfAlive || !foeAlive) {
         setBattleFinished(battle, state)
       } else {
-        // Cambiar turno al oponente - asegurar que sea string  
-        const newTurnUid = normalizeUid(sides.foe.uid)
+        // Cambiar turno usando UIDs canónicos de participantes.
+        const newTurnUid = actorSide === 'challenger' ? opponentUid : challengerUid
         console.log(`🔄 CHANGING TURN FROM ${normalizeUid(state.turnUid)} TO ${newTurnUid}`)
         console.log(`   Self: ${normalizeUid(sides.self.uid)} | Foe: ${normalizeUid(sides.foe.uid)}`)
         state.turnUid = newTurnUid
