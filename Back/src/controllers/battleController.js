@@ -53,6 +53,13 @@ function normalizeUid(value) {
   return String(value || '').trim().toLowerCase()
 }
 
+function getOppositeUid(uid, challengerUid, opponentUid) {
+  const normalized = normalizeUid(uid)
+  if (normalized === challengerUid) return opponentUid
+  if (normalized === opponentUid) return challengerUid
+  return ''
+}
+
 function initializeBattleState(battle) {
   const challengerUid = normalizeUid(battle?.challenger?.uid)
   const opponentUid = normalizeUid(battle?.opponent?.uid)
@@ -455,13 +462,32 @@ export class BattleController {
       const currentTurnUid = normalizeUid(state.turnUid)
       
       if (!currentTurnUid || currentTurnUid !== actorUid) {
+        // Auto-repair: si el ultimo turno indica que ya deberia tocarle al actor,
+        // corregimos turnUid y continuamos en lugar de bloquear en 409.
+        const lastTurn = Array.isArray(state.log) && state.log.length
+          ? state.log[state.log.length - 1]
+          : null
+        const lastAttackerUid = normalizeUid(lastTurn?.attackerUid)
+        const expectedNextUid = getOppositeUid(lastAttackerUid, challengerUid, opponentUid)
+
+        if (expectedNextUid && expectedNextUid === actorUid) {
+          console.log(`🛠️ TURN AUTO-REPAIR: current=${currentTurnUid}, expected=${expectedNextUid}, actor=${actorUid}`)
+          state.turnUid = expectedNextUid
+          battle.battleState = state
+          await battle.save()
+        }
+      }
+
+      const reconciledTurnUid = normalizeUid(state.turnUid)
+
+      if (!reconciledTurnUid || reconciledTurnUid !== actorUid) {
         console.log(`❌ TURN VALIDATION FAILED: currentTurn=${currentTurnUid}, actor=${actorUid}`)
         return res.status(409).json({
           error: 'it is not your turn',
           debug: {
             actorSide,
             actorUid,
-            currentTurnUid,
+            currentTurnUid: reconciledTurnUid,
             challengerUid,
             opponentUid,
           },
@@ -469,7 +495,7 @@ export class BattleController {
         })
       }
       
-      console.log(`✅ TURN VALIDATION PASSED: currentTurn=${currentTurnUid}, actor=${actorUid}`)
+      console.log(`✅ TURN VALIDATION PASSED: currentTurn=${reconciledTurnUid}, actor=${actorUid}`)
 
       const sides = getSidesFromState(state, actorUid)
       if (!sides) {
