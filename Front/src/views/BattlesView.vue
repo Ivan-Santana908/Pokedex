@@ -634,6 +634,11 @@ async function playMove(moveName) {
   } catch (err) {
     messageError.value = true
     message.value = err?.response?.data?.error || 'No se pudo jugar el turno.'
+
+    // Si el backend rechazo por estado desincronizado, forzar refresh del battleState.
+    if (err?.response?.status === 409) {
+      await refreshLiveBattle()
+    }
   } finally {
     loadingAction.value = false
   }

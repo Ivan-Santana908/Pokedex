@@ -49,9 +49,13 @@ function resolveBattleSummary(winnerUid, challengerUid, opponentUid) {
   return 'Battle ended in a draw.'
 }
 
+function normalizeUid(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
 function initializeBattleState(battle) {
-  const challengerUid = String(battle?.challenger?.uid || '').trim().toLowerCase()
-  const opponentUid = String(battle?.opponent?.uid || '').trim().toLowerCase()
+  const challengerUid = normalizeUid(battle?.challenger?.uid)
+  const opponentUid = normalizeUid(battle?.opponent?.uid)
   
   console.log(`⚔️  INITIALIZING BATTLE STATE`)
   console.log(`   Challenger: ${challengerUid}`)
@@ -90,9 +94,9 @@ function initializeBattleState(battle) {
 }
 
 function getSidesFromState(state, actorUid) {
-  const uid = String(actorUid || '').trim().toLowerCase()
-  const challengerUid = String(state?.challenger?.uid || '').trim().toLowerCase()
-  const opponentUid = String(state?.opponent?.uid || '').trim().toLowerCase()
+  const uid = normalizeUid(actorUid)
+  const challengerUid = normalizeUid(state?.challenger?.uid)
+  const opponentUid = normalizeUid(state?.opponent?.uid)
   
   if (challengerUid && uid === challengerUid) {
     return {
@@ -421,19 +425,22 @@ export class BattleController {
       
       // Normalizar UIDs del estado recuperado
       if (state && state.challenger) {
-        state.challenger.uid = String(state.challenger.uid || '').trim().toLowerCase()
+        state.challenger.uid = normalizeUid(state.challenger.uid)
       }
       if (state && state.opponent) {
-        state.opponent.uid = String(state.opponent.uid || '').trim().toLowerCase()
+        state.opponent.uid = normalizeUid(state.opponent.uid)
       }
       if (state) {
-        state.turnUid = String(state.turnUid || '').trim().toLowerCase()
+        state.turnUid = normalizeUid(state.turnUid)
       }
       if (state.phase === 'finished') {
         return res.status(409).json({ error: 'battle already finished', battle })
       }
-      const actorUid = String(req.user.uid || '').trim().toLowerCase()
-      const currentTurnUid = String(state.turnUid || '').trim().toLowerCase()
+
+      // Determinar actor usando la relacion real del usuario con la batalla
+      const actorSide = battle.challenger._id.equals(req.user._id) ? 'challenger' : 'opponent'
+      const actorUid = normalizeUid(state?.[actorSide]?.uid || req.user.uid)
+      const currentTurnUid = normalizeUid(state.turnUid)
       
       if (!currentTurnUid || currentTurnUid !== actorUid) {
         console.log(`❌ TURN VALIDATION FAILED: currentTurn=${currentTurnUid}, actor=${actorUid}`)
@@ -442,9 +449,9 @@ export class BattleController {
       
       console.log(`✅ TURN VALIDATION PASSED: currentTurn=${currentTurnUid}, actor=${actorUid}`)
 
-      const sides = getSidesFromState(state, req.user.uid)
+      const sides = getSidesFromState(state, actorUid)
       if (!sides) {
-        return res.status(403).json({ error: 'you are not a participant in this battle' })
+        return res.status(403).json({ error: 'you are not a participant in this battle state' })
       }
 
       const selfNext = findNextAliveIndex(sides.self.team, Number(sides.self.activeIndex || 0))
@@ -524,9 +531,9 @@ export class BattleController {
         setBattleFinished(battle, state)
       } else {
         // Cambiar turno al oponente - asegurar que sea string  
-        const newTurnUid = String(sides.foe.uid || '').trim().toLowerCase()
-        console.log(`🔄 CHANGING TURN FROM ${String(state.turnUid).trim().toLowerCase()} TO ${newTurnUid}`)
-        console.log(`   Self: ${String(sides.self.uid || '').trim()} | Foe: ${String(sides.foe.uid || '').trim()}`)
+        const newTurnUid = normalizeUid(sides.foe.uid)
+        console.log(`🔄 CHANGING TURN FROM ${normalizeUid(state.turnUid)} TO ${newTurnUid}`)
+        console.log(`   Self: ${normalizeUid(sides.self.uid)} | Foe: ${normalizeUid(sides.foe.uid)}`)
         state.turnUid = newTurnUid
       }
 
