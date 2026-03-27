@@ -1,7 +1,15 @@
 <template>
   <div class="bg-white rounded-lg shadow-lg hover:shadow-2xl overflow-hidden transition transform hover:scale-105 cursor-pointer" @click="showDetails">
     <!-- Card Header with Type Colors -->
-    <div :class="typeColor" class="h-24 flex items-center justify-center">
+    <div :class="typeColor" class="h-24 flex items-center justify-center relative">
+      <button
+        v-if="showFavoriteToggle"
+        @click.stop="toggleFavorite"
+        :title="isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'"
+        class="absolute top-2 right-2 w-8 h-8 rounded-full bg-white/90 hover:bg-white text-xl font-black leading-none text-rose-600 shadow"
+      >
+        {{ isFavorite ? '★' : '☆' }}
+      </button>
       <div class="text-center">
         <span class="text-white text-xs font-bold uppercase">{{ pokemon.types[0]?.type.name }}</span>
       </div>
@@ -82,10 +90,18 @@ const props = defineProps({
   showAddToTeam: {
     type: Boolean,
     default: false
+  },
+  showFavoriteToggle: {
+    type: Boolean,
+    default: false
+  },
+  isFavorite: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['show-details', 'add-to-team'])
+const emit = defineEmits(['show-details', 'add-to-team', 'toggle-favorite'])
 const teamStore = useTeamStore()
 
 const typeColor = computed(() => {
@@ -127,6 +143,10 @@ const showDetails = () => {
 
 const addToTeam = () => {
   emit('add-to-team', props.pokemon)
+}
+
+const toggleFavorite = () => {
+  emit('toggle-favorite', props.pokemon)
 }
 </script>
 

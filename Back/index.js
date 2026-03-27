@@ -9,6 +9,7 @@ import userRoutes from './src/routes/userRoutes.js'
 import friendRoutes from './src/routes/friendRoutes.js'
 import teamRoutes from './src/routes/teamRoutes.js'
 import battleRoutes from './src/routes/battleRoutes.js'
+import favoriteRoutes from './src/routes/favoriteRoutes.js'
 import pushRoutes from './src/routes/pushRoutes.js'
 import notificationRoutes from './src/routes/notificationRoutes.js'
 import errorHandler from './src/middleware/errorHandler.js'
@@ -96,6 +97,7 @@ app.use('/api/users', userRoutes)
 app.use('/api/friends', friendRoutes)
 app.use('/api/teams', teamRoutes)
 app.use('/api/battles', battleRoutes)
+app.use('/api/favorites', favoriteRoutes)
 app.use('/api/push', pushRoutes)
 app.use('/api/notifications', notificationRoutes)
 

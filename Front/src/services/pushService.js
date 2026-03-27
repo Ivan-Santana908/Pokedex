@@ -59,4 +59,40 @@ export async function subscribeToPush(token) {
   return subscription
 }
 
-export default { requestNotificationPermission, subscribeToPush }
+export async function ensurePushEnabled(token) {
+  if (!token) return { status: 'no-token' }
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    return { status: 'unsupported' }
+  }
+
+  let permission = Notification.permission
+  if (permission === 'default') {
+    permission = await requestNotificationPermission()
+  }
+
+  if (permission !== 'granted') {
+    return { status: permission }
+  }
+
+  const registration = await navigator.serviceWorker.ready
+  let subscription = await registration.pushManager.getSubscription()
+
+  if (!subscription) {
+    subscription = await subscribeToPush(token)
+    return { status: 'granted', subscription }
+  }
+
+  await api.post(
+    '/push/subscribe',
+    { subscription: subscription.toJSON() },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  )
+
+  return { status: 'granted', subscription }
+}
+
+export default { requestNotificationPermission, subscribeToPush, ensurePushEnabled }
