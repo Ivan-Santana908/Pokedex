@@ -22,6 +22,37 @@ function authHeaders(token) {
   }
 }
 
+function normalizePendingAddPokemon(change) {
+  const pokemon = change?.pokemon || {}
+
+  // Nuevo formato plano guardado offline
+  if (typeof pokemon?.imageUrl !== 'undefined') {
+    return {
+      pokemonId: Number(pokemon?.id || change?.pokemonId || 0),
+      pokemonName: String(pokemon?.name || '').trim().toLowerCase(),
+      imageUrl: String(pokemon?.imageUrl || ''),
+      types: Array.isArray(pokemon?.types)
+        ? pokemon.types.map((type) => String(type || '').trim().toLowerCase()).filter(Boolean)
+        : [],
+    }
+  }
+
+  // Compatibilidad con formato anterior (objeto completo de PokeAPI)
+  return {
+    pokemonId: Number(pokemon?.id || change?.pokemonId || 0),
+    pokemonName: String(pokemon?.name || '').trim().toLowerCase(),
+    imageUrl:
+      pokemon?.sprites?.other?.['official-artwork']?.front_default ||
+      pokemon?.sprites?.front_default ||
+      '',
+    types: Array.isArray(pokemon?.types)
+      ? pokemon.types
+          .map((item) => String(item?.type?.name || '').trim().toLowerCase())
+          .filter(Boolean)
+      : [],
+  }
+}
+
 /**
  * Sincronizar cambios pendientes con el servidor
  * @param {string} token - Token JWT del usuario
@@ -57,20 +88,13 @@ export async function syncPendingChanges(token, onProgress = null) {
 
       try {
         if (change.action === 'add') {
-          const pokemon = change.pokemon
-          const pokemonId = Number(pokemon?.id || 0)
-          const pokemonName = String(pokemon?.name || '').trim().toLowerCase()
-          const imageUrl =
-            pokemon?.sprites?.other?.['official-artwork']?.front_default ||
-            pokemon?.sprites?.front_default ||
-            ''
-          const types = Array.isArray(pokemon?.types)
-            ? pokemon.types
-                .map((item) => String(item?.type?.name || '').trim().toLowerCase())
-                .filter(Boolean)
-            : []
+          const { pokemonId, pokemonName, imageUrl, types } = normalizePendingAddPokemon(change)
 
-          console.log(`Sincronizando: añadir ${pokemon?.name} (ID: ${pokemonId})`)
+          if (!pokemonId) {
+            throw new Error('Cambio pendiente invalido: pokemonId ausente')
+          }
+
+          console.log(`Sincronizando: añadir ${pokemonName} (ID: ${pokemonId})`)
 
           await api.post(
             `/favorites/${pokemonId}`,
