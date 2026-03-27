@@ -6,6 +6,37 @@
         <h1 class="text-4xl font-bold text-gray-800 mb-4">Pokédex</h1>
       </div>
 
+      <!-- Offline Status & Sync Indicator -->
+      <div v-if="!navigator.onLine || hasPendingChanges" class="mb-8">
+        <div :class="{
+          'bg-orange-100 border-l-4 border-orange-500': !navigator.onLine,
+          'bg-blue-100 border-l-4 border-blue-500': navigator.onLine && hasPendingChanges
+        }" class="p-4 rounded">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span v-if="!navigator.onLine" class="text-2xl">📡</span>
+              <span v-else class="text-2xl">⏳</span>
+              <div>
+                <p v-if="!navigator.onLine" class="font-bold text-orange-800">Sin conexión</p>
+                <p v-else class="font-bold text-blue-800">Sincronizando...</p>
+                <p v-if="pendingChangesCount > 0" class="text-sm" :class="{'text-orange-700': !navigator.onLine, 'text-blue-700': navigator.onLine}">
+                  {{ pendingChangesCount }} cambio{{ pendingChangesCount !== 1 ? 's' : '' }} pendiente{{ pendingChangesCount !== 1 ? 's' : '' }}
+                </p>
+              </div>
+            </div>
+            <button
+              v-if="navigator.onLine && hasPendingChanges && authStore.isAuthenticated"
+              @click="manualSync"
+              :disabled="isSyncing"
+              :class="isSyncing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-200'"
+              class="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold transition"
+            >
+              {{ isSyncing ? '⟳ Sincronizando...' : '⟳ Sincronizar Ahora' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Search and Filter Section -->
       <div class="bg-white rounded-lg shadow-md p-6 mb-8">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -171,6 +202,7 @@ import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import favoriteService from '@/services/favoriteService'
 import syncService from '@/services/syncService'
+import * as indexedDb from '@/services/indexedDbService'
 import pokemonService from '@/services/pokemonService'
 
 const pokemonStore = usePokemonStore()
@@ -189,6 +221,7 @@ const favoritePokemon = ref([])
 // Variables para sincronización offline
 const isSyncing = ref(false)
 const hasPendingChanges = ref(false)
+const pendingChangesCount = ref(0)
 const disconnectListener = ref(null)
 
 const sortOptions = [
@@ -296,6 +329,8 @@ async function toggleFavorite(pokemon) {
     if (!favoritePokemon.value.some((item) => Number(item.id) === pokemonId)) {
       favoritePokemon.value = [pokemon, ...favoritePokemon.value]
     }
+      // Actualizar contador de cambios pendientes después de cualquier acción
+      await updatePendingChangesCount()
   } catch (err) {
     console.error('Error toggling favorite:', err)
   }
@@ -365,34 +400,77 @@ const previousPage = () => {
 }
 
 /**
- * Sincronizar cambios pendientes cuando vuelve la conexión
+ * Actualizar contador de cambios pendientes
+ */
+async function updatePendingChangesCount() {
+  try {
+    const pending = await indexedDb.getPendingChanges()
+    pendingChangesCount.value = pending.length
+    hasPendingChanges.value = pending.length > 0
+    console.log(`📊 Cambios pendientes: ${pending.length}`)
+  } catch (err) {
+    console.error('Error actualizando cambios pendientes:', err)
+  }
+}
+
+/**
+ * Sincronizar cambios pendientes cuando hay conexión
  */
 async function syncWhenOnline() {
-  if (!authStore.token || !navigator.onLine) {
+  if (!authStore.token) {
+    console.warn('❌ No hay token de autenticación para sincronizar')
+    return
+  }
+
+  if (!navigator.onLine) {
+    console.log('❌ Sin conexión - no se puede sincronizar')
     return
   }
 
   isSyncing.value = true
   try {
-    console.log('Sincronizando cambios pendientes...')
-    const results = await syncService.syncPendingChanges(authStore.token)
+    console.log('🔄 Iniciando sincronización de cambios pendientes...')
+    await updatePendingChangesCount()
+
+    const pending = await indexedDb.getPendingChanges()
+    if (pending.length === 0) {
+      console.log('✅ No hay cambios pendientes para sincronizar')
+      isSyncing.value = false
+      return
+    }
+
+    const results = await syncService.syncPendingChanges(authStore.token, (progress) => {
+      console.log(`Progreso: ${progress.done}/${progress.total}`)
+    })
+
+    console.log(`Resultados: ${results.successful.length} exitosos, ${results.failed.length} fallidos`)
 
     if (results.successful.length > 0) {
-      console.log(`✓ ${results.successful.length} cambios sincronizados`)
-      // Recargar favoritos para reflejar los cambios
+      console.log(`✅ ${results.successful.length} cambios sincronizados correctamente`)
+      // Recargar favoritos después de sincronizar
       await loadFavorites()
     }
 
     if (results.failed.length > 0) {
-      console.log(`✗ ${results.failed.length} cambios fallaron`)
+      console.log(`⚠️  ${results.failed.length} cambios fallaron en sincronización`)
     }
 
+    // Actualizar estado
+    await updatePendingChangesCount()
     hasPendingChanges.value = false
   } catch (err) {
-    console.error('Error en sincronización:', err)
+    console.error('❌ Error en sincronización:', err)
   } finally {
     isSyncing.value = false
   }
+}
+
+/**
+ * Sincronización manual (para el botón)
+ */
+async function manualSync() {
+  console.log('🔄 Sincronización manual iniciada por usuario')
+  await syncWhenOnline()
 }
 
 /**
@@ -400,12 +478,16 @@ async function syncWhenOnline() {
  */
 function setupNetworkListener() {
   const handleOnline = () => {
-    console.log('📡 Conexión restaurada - sincronizando...')
-    syncWhenOnline()
+    console.log('✅ 📡 Conexión restaurada - iniciando sincronización...')
+    // Pequeño delay para asegurar que la conexión está estable
+    setTimeout(() => {
+      syncWhenOnline()
+    }, 500)
   }
 
   const handleOffline = () => {
-    console.log('📡 Sin conexión - cambios se guardarán localmente')
+    console.log('❌ 📡 Sin conexión - cambios se guardarán localmente')
+    updatePendingChangesCount()
   }
 
   window.addEventListener('online', handleOnline)
@@ -436,6 +518,16 @@ onMounted(async () => {
   if (navigator.onLine && authStore.token) {
     syncWhenOnline()
   }
+  
+    // Actualizar contador de cambios pendientes
+    await updatePendingChangesCount()
+  
+    // Sincronizar si hay cambios pendientes al cargar la página (con delay)
+    if (navigator.onLine && authStore.token && hasPendingChanges.value) {
+      setTimeout(() => {
+        syncWhenOnline()
+      }, 1000)
+    }
 })
 
 onUnmounted(() => {
