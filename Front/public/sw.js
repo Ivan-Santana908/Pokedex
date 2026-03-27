@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v9'
+const CACHE_VERSION = 'v10'
 const APP_SHELL_CACHE = `pokedex-app-shell-${CACHE_VERSION}`
 const DYNAMIC_CACHE = `pokedex-dynamic-${CACHE_VERSION}`
 const urlsToCache = [
@@ -38,10 +38,38 @@ self.addEventListener('fetch', (event) => {
 
   const requestUrl = new URL(event.request.url)
   const isSameOrigin = requestUrl.origin === self.location.origin
+  const isNavigateRequest = event.request.mode === 'navigate'
   const isAppShellRequest = isSameOrigin && urlsToCache.includes(requestUrl.pathname)
 
   // No interceptar tráfico cross-origin (API Railway, socket.io, CDN).
   if (!isSameOrigin) return
+
+  // Para rutas de SPA (/pokemon, /teams, etc): network-first con fallback a /index.html.
+  // Evita pantalla blanca en PWA standalone cuando hay navegación directa.
+  if (isNavigateRequest) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const clonedResponse = response.clone()
+          caches.open(DYNAMIC_CACHE).then((cache) => {
+            cache.put(event.request, clonedResponse)
+          })
+          return response
+        })
+        .catch(async () => {
+          const cachedIndex = await caches.match('/index.html')
+          if (cachedIndex) return cachedIndex
+          const cachedRoot = await caches.match('/')
+          if (cachedRoot) return cachedRoot
+          return new Response('Offline - App shell no disponible', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({ 'Content-Type': 'text/plain' }),
+          })
+        })
+    )
+    return
+  }
 
   if (event.request.url.includes('pokeapi.co')) {
     event.respondWith(
@@ -64,8 +92,17 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (isAppShellRequest) {
+    // Para app shell preferir network-first para evitar HTML/manifest obsoleto
     event.respondWith(
-      caches.match(event.request).then((response) => response || fetch(event.request))
+      fetch(event.request)
+        .then((response) => {
+          const clonedResponse = response.clone()
+          caches.open(APP_SHELL_CACHE).then((cache) => {
+            cache.put(event.request, clonedResponse)
+          })
+          return response
+        })
+        .catch(() => caches.match(event.request))
     )
     return
   }
