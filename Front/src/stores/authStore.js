@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import authService from '@/services/authService'
+import { ensurePushEnabled } from '@/services/pushService'
 
 const TOKEN_KEY = 'pokedexAuthToken'
 const USER_KEY = 'pokedexAuthUser'
@@ -71,6 +72,14 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = ''
     const response = await authService.register(payload)
     persistSession(response.token, response.user)
+
+    // Pedir permiso push inmediatamente despues de registrarse con sesion activa.
+    try {
+      await ensurePushEnabled(response.token)
+    } catch (pushError) {
+      console.warn('Push enable after register skipped:', pushError?.message || pushError)
+    }
+
     return response.user
   }
 
@@ -78,6 +87,14 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = ''
     const response = await authService.login(payload)
     persistSession(response.token, response.user)
+
+    // Pedir permiso push inmediatamente despues de iniciar sesion.
+    try {
+      await ensurePushEnabled(response.token)
+    } catch (pushError) {
+      console.warn('Push enable after login skipped:', pushError?.message || pushError)
+    }
+
     return response.user
   }
 
