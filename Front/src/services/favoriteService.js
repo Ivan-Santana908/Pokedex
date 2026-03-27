@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { getBackendUrl } from './apiBaseUrl'
+import * as indexedDb from './indexedDbService'
 
 const BACKEND_URL = getBackendUrl()
 
@@ -32,6 +33,23 @@ export async function addFavorite(token, pokemon) {
     ? pokemon.types.map((item) => String(item?.type?.name || '').trim().toLowerCase()).filter(Boolean)
     : []
 
+  // Si no hay conexión, guardar en IndexedDB
+  if (!navigator.onLine) {
+    console.log(`[OFFLINE] Guardando favorito ${pokemonId} en IndexedDB`)
+    await indexedDb.savePendingChange({
+      action: 'add',
+      pokemonId,
+      pokemon,
+    })
+    return {
+      success: true,
+      offline: true,
+      message: 'Se sincronizará cuando tengas conexión',
+      pokemonId,
+    }
+  }
+
+  // Si hay conexión, hacer la llamada normal
   const { data } = await api.post(
     `/favorites/${pokemonId}`,
     { pokemonName, imageUrl, types },
@@ -42,6 +60,22 @@ export async function addFavorite(token, pokemon) {
 }
 
 export async function removeFavorite(token, pokemonId) {
+  // Si no hay conexión, guardar en IndexedDB
+  if (!navigator.onLine) {
+    console.log(`[OFFLINE] Marcando favorito ${pokemonId} para remover en IndexedDB`)
+    await indexedDb.savePendingChange({
+      action: 'remove',
+      pokemonId,
+    })
+    return {
+      success: true,
+      offline: true,
+      message: 'Se sincronizará cuando tengas conexión',
+      pokemonId,
+    }
+  }
+
+  // Si hay conexión, hacer la llamada normal
   const { data } = await api.delete(`/favorites/${pokemonId}`, authHeaders(token))
   return data
 }

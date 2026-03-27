@@ -164,12 +164,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { usePokemonStore } from '@/stores/pokemonStore'
 import { useAuthStore } from '@/stores/authStore'
 import PokemonCard from '@/components/PokemonCard.vue'
 import PokemonDetailModal from '@/components/PokemonDetailModal.vue'
 import favoriteService from '@/services/favoriteService'
+import syncService from '@/services/syncService'
 import pokemonService from '@/services/pokemonService'
 
 const pokemonStore = usePokemonStore()
@@ -184,6 +185,11 @@ const searchHint = ref('')
 const searchTimeout = ref(null)
 const favoriteIds = ref(new Set())
 const favoritePokemon = ref([])
+
+// Variables para sincronización offline
+const isSyncing = ref(false)
+const hasPendingChanges = ref(false)
+const disconnectListener = ref(null)
 
 const sortOptions = [
   { value: 'id', label: 'Nº Pokédex' },
@@ -358,6 +364,60 @@ const previousPage = () => {
   }
 }
 
+/**
+ * Sincronizar cambios pendientes cuando vuelve la conexión
+ */
+async function syncWhenOnline() {
+  if (!authStore.token || !navigator.onLine) {
+    return
+  }
+
+  isSyncing.value = true
+  try {
+    console.log('Sincronizando cambios pendientes...')
+    const results = await syncService.syncPendingChanges(authStore.token)
+
+    if (results.successful.length > 0) {
+      console.log(`✓ ${results.successful.length} cambios sincronizados`)
+      // Recargar favoritos para reflejar los cambios
+      await loadFavorites()
+    }
+
+    if (results.failed.length > 0) {
+      console.log(`✗ ${results.failed.length} cambios fallaron`)
+    }
+
+    hasPendingChanges.value = false
+  } catch (err) {
+    console.error('Error en sincronización:', err)
+  } finally {
+    isSyncing.value = false
+  }
+}
+
+/**
+ * Configurar listener para cambios de conectividad
+ */
+function setupNetworkListener() {
+  const handleOnline = () => {
+    console.log('📡 Conexión restaurada - sincronizando...')
+    syncWhenOnline()
+  }
+
+  const handleOffline = () => {
+    console.log('📡 Sin conexión - cambios se guardarán localmente')
+  }
+
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+
+  // Retornar función para remover listeners
+  disconnectListener.value = () => {
+    window.removeEventListener('online', handleOnline)
+    window.removeEventListener('offline', handleOffline)
+  }
+}
+
 onMounted(async () => {
   if (pokemonStore.pokemonList.length === 0) {
     await pokemonStore.fetchPokemonList()
@@ -368,14 +428,35 @@ onMounted(async () => {
 
   await authStore.initializeAuth()
   await loadFavorites()
+
+  // Configurar sincronización automática
+  setupNetworkListener()
+
+  // Sincronizar si hay cambios pendientes al cargar la página
+  if (navigator.onLine && authStore.token) {
+    syncWhenOnline()
+  }
+})
+
+onUnmounted(() => {
+  // Limpiar listeners
+  if (disconnectListener.value) {
+    disconnectListener.value()
+  }
 })
 
 watch(
   () => authStore.isAuthenticated,
   async () => {
     await loadFavorites()
+    // Re-configurar listeners cuando cambia autenticación
+    if (disconnectListener.value) {
+      disconnectListener.value()
+    }
+    setupNetworkListener()
   }
 )
+
 </script>
 
 <style scoped>
