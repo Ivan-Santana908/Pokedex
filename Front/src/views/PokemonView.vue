@@ -7,25 +7,25 @@
       </div>
 
       <!-- Offline Status & Sync Indicator -->
-      <div v-if="!navigator.onLine || hasPendingChanges" class="mb-8">
+      <div v-if="!isOnline || hasPendingChanges" class="mb-8">
         <div :class="{
-          'bg-orange-100 border-l-4 border-orange-500': !navigator.onLine,
-          'bg-blue-100 border-l-4 border-blue-500': navigator.onLine && hasPendingChanges
+          'bg-orange-100 border-l-4 border-orange-500': !isOnline,
+          'bg-blue-100 border-l-4 border-blue-500': isOnline && hasPendingChanges
         }" class="p-4 rounded">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
-              <span v-if="!navigator.onLine" class="text-2xl">📡</span>
+              <span v-if="!isOnline" class="text-2xl">📡</span>
               <span v-else class="text-2xl">⏳</span>
               <div>
-                <p v-if="!navigator.onLine" class="font-bold text-orange-800">Sin conexión</p>
+                <p v-if="!isOnline" class="font-bold text-orange-800">Sin conexión</p>
                 <p v-else class="font-bold text-blue-800">Sincronizando...</p>
-                <p v-if="pendingChangesCount > 0" class="text-sm" :class="{'text-orange-700': !navigator.onLine, 'text-blue-700': navigator.onLine}">
+                <p v-if="pendingChangesCount > 0" class="text-sm" :class="{'text-orange-700': !isOnline, 'text-blue-700': isOnline}">
                   {{ pendingChangesCount }} cambio{{ pendingChangesCount !== 1 ? 's' : '' }} pendiente{{ pendingChangesCount !== 1 ? 's' : '' }}
                 </p>
               </div>
             </div>
             <button
-              v-if="navigator.onLine && hasPendingChanges && authStore.isAuthenticated"
+              v-if="isOnline && hasPendingChanges && authStore.isAuthenticated"
               @click="manualSync"
               :disabled="isSyncing"
               :class="isSyncing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-200'"
@@ -219,6 +219,7 @@ const favoriteIds = ref(new Set())
 const favoritePokemon = ref([])
 
 // Variables para sincronización offline
+const isOnline = ref(typeof globalThis !== 'undefined' && !!globalThis.navigator ? globalThis.navigator.onLine : true)
 const isSyncing = ref(false)
 const hasPendingChanges = ref(false)
 const pendingChangesCount = ref(0)
@@ -320,17 +321,17 @@ async function toggleFavorite(pokemon) {
       await favoriteService.removeFavorite(authStore.token, pokemonId)
       setFavoriteId(pokemonId, false)
       favoritePokemon.value = favoritePokemon.value.filter((item) => Number(item.id) !== pokemonId)
-      return
+    } else {
+      await favoriteService.addFavorite(authStore.token, pokemon)
+      setFavoriteId(pokemonId, true)
+
+      if (!favoritePokemon.value.some((item) => Number(item.id) === pokemonId)) {
+        favoritePokemon.value = [pokemon, ...favoritePokemon.value]
+      }
     }
 
-    await favoriteService.addFavorite(authStore.token, pokemon)
-    setFavoriteId(pokemonId, true)
-
-    if (!favoritePokemon.value.some((item) => Number(item.id) === pokemonId)) {
-      favoritePokemon.value = [pokemon, ...favoritePokemon.value]
-    }
-      // Actualizar contador de cambios pendientes después de cualquier acción
-      await updatePendingChangesCount()
+    // Actualizar contador de cambios pendientes después de cualquier acción
+    await updatePendingChangesCount()
   } catch (err) {
     console.error('Error toggling favorite:', err)
   }
@@ -422,7 +423,7 @@ async function syncWhenOnline() {
     return
   }
 
-  if (!navigator.onLine) {
+  if (!isOnline.value) {
     console.log('❌ Sin conexión - no se puede sincronizar')
     return
   }
@@ -455,9 +456,8 @@ async function syncWhenOnline() {
       console.log(`⚠️  ${results.failed.length} cambios fallaron en sincronización`)
     }
 
-    // Actualizar estado
+    // Actualizar estado real según IndexedDB
     await updatePendingChangesCount()
-    hasPendingChanges.value = false
   } catch (err) {
     console.error('❌ Error en sincronización:', err)
   } finally {
@@ -478,6 +478,7 @@ async function manualSync() {
  */
 function setupNetworkListener() {
   const handleOnline = () => {
+    isOnline.value = true
     console.log('✅ 📡 Conexión restaurada - iniciando sincronización...')
     // Pequeño delay para asegurar que la conexión está estable
     setTimeout(() => {
@@ -486,6 +487,7 @@ function setupNetworkListener() {
   }
 
   const handleOffline = () => {
+    isOnline.value = false
     console.log('❌ 📡 Sin conexión - cambios se guardarán localmente')
     updatePendingChangesCount()
   }
@@ -501,6 +503,8 @@ function setupNetworkListener() {
 }
 
 onMounted(async () => {
+  isOnline.value = typeof globalThis !== 'undefined' && !!globalThis.navigator ? globalThis.navigator.onLine : true
+
   if (pokemonStore.pokemonList.length === 0) {
     await pokemonStore.fetchPokemonList()
   }
@@ -515,7 +519,7 @@ onMounted(async () => {
   setupNetworkListener()
 
   // Sincronizar si hay cambios pendientes al cargar la página
-  if (navigator.onLine && authStore.token) {
+  if (isOnline.value && authStore.token) {
     syncWhenOnline()
   }
   
@@ -523,7 +527,7 @@ onMounted(async () => {
     await updatePendingChangesCount()
   
     // Sincronizar si hay cambios pendientes al cargar la página (con delay)
-    if (navigator.onLine && authStore.token && hasPendingChanges.value) {
+    if (isOnline.value && authStore.token && hasPendingChanges.value) {
       setTimeout(() => {
         syncWhenOnline()
       }, 1000)
