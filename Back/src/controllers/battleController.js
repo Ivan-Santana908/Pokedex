@@ -67,6 +67,20 @@ function getOppositeUid(uid, challengerUid, opponentUid) {
   return ''
 }
 
+function getLastBattleAttackerUid(battle, state) {
+  const stateLog = Array.isArray(state?.log) ? state.log : []
+  if (stateLog.length > 0) {
+    return normalizeUid(stateLog[stateLog.length - 1]?.attackerUid)
+  }
+
+  const battleTurns = Array.isArray(battle?.turns) ? battle.turns : []
+  if (battleTurns.length > 0) {
+    return normalizeUid(battleTurns[battleTurns.length - 1]?.attackerUid)
+  }
+
+  return ''
+}
+
 function initializeBattleState(battle) {
   const challengerUid = normalizeUid(battle?.challenger?.uid)
   const opponentUid = normalizeUid(battle?.opponent?.uid)
@@ -496,10 +510,7 @@ export class BattleController {
       if (!currentTurnUid || currentTurnUid !== actorUid) {
         // Auto-repair: si el ultimo turno indica que ya deberia tocarle al actor,
         // corregimos turnUid y continuamos en lugar de bloquear en 409.
-        const lastTurn = Array.isArray(state.log) && state.log.length
-          ? state.log[state.log.length - 1]
-          : null
-        const lastAttackerUid = normalizeUid(lastTurn?.attackerUid)
+        const lastAttackerUid = getLastBattleAttackerUid(battle, state)
         const expectedNextUid = getOppositeUid(lastAttackerUid, challengerUid, opponentUid)
 
         if (expectedNextUid && expectedNextUid === actorUid) {

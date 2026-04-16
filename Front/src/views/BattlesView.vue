@@ -581,7 +581,17 @@ async function openLiveBattle(battleId) {
 }
 
 async function playMove(moveName) {
-  if (!liveBattleId.value || !isMyTurn.value || isLiveFinished.value) return
+  if (!liveBattleId.value || isLiveFinished.value) return
+
+  // Si el estado local quedó viejo, refrescar antes de mandar el ataque.
+  if (!isMyTurn.value) {
+    await refreshLiveBattle()
+    if (!isMyTurn.value) {
+      messageError.value = true
+      message.value = 'Aun no es tu turno. Se actualizó el estado de la batalla.'
+      return
+    }
+  }
 
   loadingAction.value = true
   message.value = ''
