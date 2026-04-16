@@ -517,6 +517,7 @@ export class BattleController {
           console.log(`🛠️ TURN AUTO-REPAIR: current=${currentTurnUid}, expected=${expectedNextUid}, actor=${actorUid}`)
           state.turnUid = expectedNextUid
           battle.battleState = state
+          battle.markModified('battleState')
           await battle.save()
         }
       }
@@ -549,6 +550,7 @@ export class BattleController {
       if (selfNext === -1) {
         setBattleFinished(battle, state)
         battle.battleState = state
+        battle.markModified('battleState')
         await battle.save()
         return res.json({ battle })
       }
@@ -558,6 +560,7 @@ export class BattleController {
       if (foeNext === -1) {
         setBattleFinished(battle, state)
         battle.battleState = state
+        battle.markModified('battleState')
         await battle.save()
         return res.json({ battle })
       }
@@ -630,6 +633,7 @@ export class BattleController {
 
       battle.battleState = state
       battle.phase = state.phase
+      battle.markModified('battleState')
       await battle.save()
 
       // Emitir evento WebSocket a ambos jugadores
