@@ -74,10 +74,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
-import { ensurePushEnabled } from '@/services/pushService'
 
 const authStore = useAuthStore()
 const router = useRouter()
+
+const REQUEST_PUSH_AFTER_AUTH_KEY = 'requestPushAfterAuth'
 
 const displayName = ref('')
 const username = ref('')
@@ -98,11 +99,7 @@ const submit = async () => {
       password: password.value,
     })
 
-    try {
-      await ensurePushEnabled(authStore.token)
-    } catch (pushError) {
-      console.warn('Push enable after register skipped:', pushError?.message || pushError)
-    }
+    sessionStorage.setItem(REQUEST_PUSH_AFTER_AUTH_KEY, '1')
 
     router.push('/profile')
   } catch (err) {

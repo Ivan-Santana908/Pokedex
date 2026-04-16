@@ -49,11 +49,12 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
-import { ensurePushEnabled } from '@/services/pushService'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+
+const REQUEST_PUSH_AFTER_AUTH_KEY = 'requestPushAfterAuth'
 
 const emailOrUsername = ref('')
 const password = ref('')
@@ -70,11 +71,7 @@ const submit = async () => {
       password: password.value,
     })
 
-    try {
-      await ensurePushEnabled(authStore.token)
-    } catch (pushError) {
-      console.warn('Push enable after login skipped:', pushError?.message || pushError)
-    }
+    sessionStorage.setItem(REQUEST_PUSH_AFTER_AUTH_KEY, '1')
 
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/pokemon'
     router.push(redirect)
