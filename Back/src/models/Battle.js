@@ -17,6 +17,16 @@ const battleTurnSchema = new mongoose.Schema(
 
 const battleSchema = new mongoose.Schema(
   {
+    pairKey: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    activePairKey: {
+      type: String,
+      default: null,
+      index: true,
+    },
     challenger: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -43,6 +53,12 @@ const battleSchema = new mongoose.Schema(
       type: String,
       enum: ['pending', 'accepted', 'rejected', 'finished', 'cancelled'],
       default: 'pending',
+      index: true,
+    },
+    phase: {
+      type: String,
+      enum: ['waiting', 'active', 'finished'],
+      default: 'waiting',
       index: true,
     },
     winner: {
@@ -72,6 +88,16 @@ const battleSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
+)
+
+battleSchema.index(
+  { activePairKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      activePairKey: { $type: 'string' },
+    },
+  }
 )
 
 const Battle = mongoose.model('Battle', battleSchema)

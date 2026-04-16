@@ -98,7 +98,9 @@
           <p class="font-semibold text-gray-800">
             {{ battle.challenger?.username }} vs {{ battle.opponent?.username }}
           </p>
-          <p class="text-xs text-gray-500 mb-2">Estado: {{ battle.status }}</p>
+          <p class="text-xs text-gray-500 mb-2">
+            Estado: {{ battle.phase || (battle.status === 'accepted' ? 'active' : battle.status) }}
+          </p>
           <div class="flex gap-2 flex-wrap">
             <button
               @click="openLiveBattle(battle._id)"
@@ -263,7 +265,9 @@ const liveBattle = ref(null)
 const pokemonDetails = ref({}) // Guardar detalles con imágenes
 let requestPoller = null // Polling de solicitudes de batalla
 
-const acceptedBattles = computed(() => battleHistory.value.filter((battle) => battle.status === 'accepted'))
+const acceptedBattles = computed(() =>
+  battleHistory.value.filter((battle) => battle.status === 'accepted' || battle.phase === 'active')
+)
 const myUid = computed(() => authStore.user?.uid || '')
 
 function normalizeUid(value) {

@@ -71,7 +71,8 @@ export function calculateDamage(attacker, defender, move) {
   const randomFactor = 0.85 + Math.random() * 0.15
 
   const base = (((2 * level) / 5 + 2) * power * (attackStat / Math.max(1, defenseStat))) / 50 + 2
-  const total = Math.max(1, Math.floor(base * stab * effectiveness * randomFactor))
+  const scaled = Math.floor(base * stab * effectiveness * randomFactor * 0.35)
+  const total = Math.max(4, Math.min(24, scaled))
 
   return { damage: total, effectiveness }
 }

@@ -53,6 +53,13 @@ function normalizeUid(value) {
   return String(value || '').trim().toLowerCase()
 }
 
+function makeBattlePairKey(challengerId, opponentId) {
+  return [String(challengerId || '').trim(), String(opponentId || '').trim()]
+    .filter(Boolean)
+    .sort()
+    .join(':')
+}
+
 function getOppositeUid(uid, challengerUid, opponentUid) {
   const normalized = normalizeUid(uid)
   if (normalized === challengerUid) return opponentUid
@@ -135,6 +142,8 @@ function setBattleFinished(battle, state) {
   state.turnUid = null
 
   battle.status = 'finished'
+  battle.phase = 'finished'
+  battle.activePairKey = null
   battle.finishedAt = new Date()
   battle.summary = state.summary
 
@@ -170,21 +179,36 @@ export class BattleController {
         return res.status(403).json({ error: 'you can only battle with friends' })
       }
 
+      const pairKey = makeBattlePairKey(req.user._id, opponent._id)
+
       const existingPending = await Battle.findOne({
-        challenger: req.user._id,
-        opponent: opponent._id,
-        status: 'pending',
+        $or: [
+          {
+            activePairKey: pairKey,
+            status: { $in: ['pending', 'accepted'] },
+          },
+          {
+            status: { $in: ['pending', 'accepted'] },
+            $or: [
+              { challenger: req.user._id, opponent: opponent._id },
+              { challenger: opponent._id, opponent: req.user._id },
+            ],
+          },
+        ],
       })
 
       if (existingPending) {
-        return res.status(409).json({ error: 'you already have a pending battle request with this user' })
+        return res.status(409).json({ error: 'there is already an active or pending battle request with this user' })
       }
 
       const battle = await Battle.create({
+        pairKey,
+        activePairKey: pairKey,
         challenger: req.user._id,
         opponent: opponent._id,
         challengerTeam: challengerTeam._id,
         status: 'pending',
+        phase: 'waiting',
       })
 
       const payload = {
@@ -259,6 +283,8 @@ export class BattleController {
 
       if (action === 'reject') {
         battle.status = 'rejected'
+        battle.phase = 'finished'
+        battle.activePairKey = null
         battle.respondedAt = new Date()
         await battle.save()
         return res.json({ battle })
@@ -274,6 +300,8 @@ export class BattleController {
       }
 
       battle.status = 'accepted'
+  battle.phase = 'active'
+  battle.pairKey = battle.pairKey || makeBattlePairKey(battle.challenger._id, battle.opponent._id)
       battle.opponentTeam = opponentTeam._id
       battle.respondedAt = new Date()
       battle.turns = []
@@ -281,6 +309,7 @@ export class BattleController {
       battle.summary = ''
       battle.finishedAt = null
       battle.winner = null
+  battle.activePairKey = battle.pairKey
       await battle.save()
 
       return res.json({ battle })
@@ -321,6 +350,8 @@ export class BattleController {
       battle.turns = result.turns
       battle.summary = result.summary
       battle.status = 'finished'
+      battle.phase = 'finished'
+      battle.activePairKey = null
       battle.finishedAt = new Date()
 
       if (result.winnerUid === battle.challenger.uid) {
@@ -385,6 +416,7 @@ export class BattleController {
 
       if (battle.status === 'accepted' && !battle.battleState) {
         battle.battleState = initializeBattleState(battle)
+        battle.phase = 'active'
         await battle.save()
       }
       
@@ -586,6 +618,7 @@ export class BattleController {
       }
 
       battle.battleState = state
+      battle.phase = state.phase
       await battle.save()
 
       // Emitir evento WebSocket a ambos jugadores
@@ -624,7 +657,21 @@ export class BattleController {
         .sort({ createdAt: -1 })
         .limit(50)
 
-      return res.json({ battles })
+      const normalizedBattles = battles.map((battle) => {
+        if (!battle.phase) {
+          if (battle.status === 'finished' || battle.status === 'rejected' || battle.status === 'cancelled') {
+            battle.phase = 'finished'
+          } else if (battle.status === 'accepted') {
+            battle.phase = 'active'
+          } else {
+            battle.phase = 'waiting'
+          }
+        }
+
+        return battle
+      })
+
+      return res.json({ battles: normalizedBattles })
     } catch (error) {
       next(error)
     }
